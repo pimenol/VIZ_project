@@ -39,11 +39,7 @@ def make_demo_run(
     loss_clean = 2.5 * np.exp(-s / 12.0) + 0.3
     loss = loss_clean + rng.normal(0.0, 0.05, size=n_steps)
     loss[0] = np.nan
-    perplexity = np.exp(np.where(np.isnan(loss), 0.0, loss))
-    perplexity[0] = np.nan
 
-    # tm_score and lddt: rise then dip slightly.
-    tm = 0.55 + 0.30 * rise * decline + rng.normal(0.0, 0.01, size=n_steps)
     lddt = 0.50 + 0.35 * rise * decline + rng.normal(0.0, 0.01, size=n_steps)
 
     best_step = int(np.argmax(plddt_mean))
@@ -52,9 +48,7 @@ def make_demo_run(
     return PtttRun(
         steps=steps,
         loss=loss,
-        perplexity=perplexity,
         plddt_mean=plddt_mean,
-        tm_score=tm.astype(np.float64),
         lddt=lddt.astype(np.float64),
         plddt_matrix=plddt,
         plddt_delta=plddt_delta,

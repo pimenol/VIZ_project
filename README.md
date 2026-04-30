@@ -38,7 +38,7 @@ python main.py --demo
 
 | View | What it shows |
 |------|---------------|
-| **T1 Line chart** (top) | Mean pLDDT, perplexity, TM-score, lDDT across steps. Peak pLDDT step marked in red. |
+| **T1 Line chart** (top) | Mean pLDDT and lDDT across steps. Peak pLDDT step marked in red. |
 | **T2 Heatmap** (bottom-left) | Per-residue pLDDT across all steps. Color modes: AlphaFold bands or delta-from-step-0. |
 | **T3 Profile** (bottom-right) | Overlaid per-residue pLDDT polylines for selected comparison steps. Step picker on the right. |
 
@@ -101,9 +101,7 @@ Tab-separated, one row per step. Columns used (others are ignored):
 |--------|------|-------|
 | `step` | int | 0-based TTT step index |
 | `loss` | float | Training loss; empty/NaN at step 0 |
-| `perplexity` | float | Sequence perplexity; empty/NaN at step 0 |
 | `plddt` | float | Mean pLDDT across all atoms (matches `calculate_plddt`) |
-| `tm_score` | float | TM-score vs reference; may be all-empty for a run |
 | `lddt` | float | lDDT score |
 
 Example header:
@@ -121,9 +119,7 @@ Files must be named `step_<i>.pdb` (any integer suffix). Per-residue pLDDT is re
 |-------|-------------|-------------|
 | `steps` | `(S,) int32` | Step indices from TSV |
 | `loss` | `(S,) float64` | NaN where missing |
-| `perplexity` | `(S,) float64` | NaN where missing |
 | `plddt_mean` | `(S,) float64` | From TSV `plddt` column |
-| `tm_score` | `(S,) float64` | NaN where missing |
 | `lddt` | `(S,) float64` | NaN where missing |
 | `plddt_matrix` | `(S, N) float32` | Per-residue pLDDT from CA B-factors |
 | `plddt_delta` | `(S, N) float32` | `plddt_matrix − plddt_matrix[0]` |

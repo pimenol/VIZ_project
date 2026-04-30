@@ -39,19 +39,17 @@ _BOT_MARGIN = 28.0
 _TOTAL_W = 700.0
 _TOTAL_H = 480.0
 
-# Relative panel heights: pLDDT 40%, then 20% each
-_PANEL_FRACS = [0.40, 0.20, 0.20, 0.20]
-_PANEL_TITLES = ["pLDDT", "Perplexity", "TM-score", "lDDT"]
+# Relative panel heights: pLDDT 60%, lDDT 40%
+_PANEL_FRACS = [0.60, 0.40]
+_PANEL_TITLES = ["pLDDT", "lDDT"]
 _PANEL_COLORS = [
     QColor(0, 83, 214),    # blue — pLDDT
-    QColor(200, 80, 40),   # orange-red — perplexity
-    QColor(80, 160, 80),   # green — tm_score
     QColor(140, 40, 160),  # purple — lDDT
 ]
 
 
 def _series_for_panel(run: PtttRun, idx: int) -> np.ndarray:
-    return [run.plddt_mean, run.perplexity, run.tm_score, run.lddt][idx]
+    return [run.plddt_mean, run.lddt][idx]
 
 
 def _panel_rects(total_h: float) -> list[QRectF]:
@@ -73,7 +71,7 @@ class LineChartScene(QGraphicsScene):
         self._step_line: QGraphicsLineItem | None = None
         self._crosshair_x: QGraphicsLineItem | None = None
         self._crosshair_labels: list[QGraphicsTextItem] = []
-        self._panel_items: list[list[QGraphicsItem]] = [[] for _ in range(4)]
+        self._panel_items: list[list[QGraphicsItem]] = [[] for _ in range(2)]
         self._build()
 
     def set_run(self, run: PtttRun) -> None:
@@ -82,7 +80,7 @@ class LineChartScene(QGraphicsScene):
         self._step_line = None
         self._crosshair_x = None
         self._crosshair_labels = []
-        self._panel_items = [[] for _ in range(4)]
+        self._panel_items = [[] for _ in range(2)]
         self._build()
 
     def move_step_line(self, step: int) -> None:
@@ -106,15 +104,11 @@ class LineChartScene(QGraphicsScene):
         run = self._run
         series_vals = [
             run.plddt_mean[step] if step < run.n_steps else math.nan,
-            run.perplexity[step] if step < run.n_steps else math.nan,
-            run.tm_score[step] if step < run.n_steps else math.nan,
             run.lddt[step] if step < run.n_steps else math.nan,
         ]
         labels = [
             f"pLDDT={series_vals[0]:.2f}" if not math.isnan(series_vals[0]) else "pLDDT=—",
-            f"PPL={series_vals[1]:.2f}" if not math.isnan(series_vals[1]) else "PPL=—",
-            f"TM={series_vals[2]:.3f}" if not math.isnan(series_vals[2]) else "TM=—",
-            f"lDDT={series_vals[3]:.3f}" if not math.isnan(series_vals[3]) else "lDDT=—",
+            f"lDDT={series_vals[1]:.3f}" if not math.isnan(series_vals[1]) else "lDDT=—",
         ]
         for i, (lbl_item, lbl_text, rect) in enumerate(
             zip(self._crosshair_labels, labels, rects)
@@ -378,15 +372,13 @@ class LineChartView(QGraphicsView):
             self._lscene.show_crosshair(step, self._lscene._step_to_x(step, rect))
             vals = [
                 self._run.plddt_mean[step],
-                self._run.perplexity[step],
-                self._run.tm_score[step],
                 self._run.lddt[step],
             ]
             def fmt(v):
                 return f"{v:.3f}" if not math.isnan(v) else "—"
             QToolTip.showText(
                 event.globalPos(),
-                f"Step {step}\npLDDT={fmt(vals[0])}  PPL={fmt(vals[1])}\nTM={fmt(vals[2])}  lDDT={fmt(vals[3])}",
+                f"Step {step}\npLDDT={fmt(vals[0])}  lDDT={fmt(vals[1])}",
             )
         else:
             self._lscene.hide_crosshair()

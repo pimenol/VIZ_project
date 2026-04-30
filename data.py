@@ -14,16 +14,14 @@ log = logging.getLogger(__name__)
 
 _STEP_RE = re.compile(r"step_(\d+)\.pdb$")
 
-_REQUIRED_TSV_COLS = ("step", "loss", "perplexity", "plddt", "tm_score", "lddt")
+_REQUIRED_TSV_COLS = ("step", "loss", "plddt", "lddt")
 
 
 @dataclass(frozen=True)
 class PtttRun:
     steps: np.ndarray            # (S,) int
     loss: np.ndarray             # (S,) float, NaN for missing
-    perplexity: np.ndarray       # (S,) float, NaN for missing
     plddt_mean: np.ndarray       # (S,) float
-    tm_score: np.ndarray         # (S,) float, may be all NaN
     lddt: np.ndarray             # (S,) float
     plddt_matrix: np.ndarray     # (S, N) float32
     plddt_delta: np.ndarray      # (S, N) float32, plddt_matrix - plddt_matrix[0]
@@ -54,17 +52,13 @@ def _parse_tsv(tsv_path: Path) -> dict[str, np.ndarray]:
     out: dict[str, np.ndarray] = {
         "steps": np.empty(n, dtype=np.int32),
         "loss": np.empty(n, dtype=np.float64),
-        "perplexity": np.empty(n, dtype=np.float64),
         "plddt_mean": np.empty(n, dtype=np.float64),
-        "tm_score": np.empty(n, dtype=np.float64),
         "lddt": np.empty(n, dtype=np.float64),
     }
     for i, row in enumerate(rows):
         out["steps"][i] = int(row[idx["step"]])
         out["loss"][i] = _to_float(row[idx["loss"]])
-        out["perplexity"][i] = _to_float(row[idx["perplexity"]])
         out["plddt_mean"][i] = _to_float(row[idx["plddt"]])
-        out["tm_score"][i] = _to_float(row[idx["tm_score"]])
         out["lddt"][i] = _to_float(row[idx["lddt"]])
     return out
 
@@ -151,9 +145,7 @@ def load_run(tsv_path: Path, pdbs_dir: Path) -> PtttRun:
     return PtttRun(
         steps=steps,
         loss=tsv["loss"],
-        perplexity=tsv["perplexity"],
         plddt_mean=plddt_mean,
-        tm_score=tsv["tm_score"],
         lddt=tsv["lddt"],
         plddt_matrix=plddt_matrix,
         plddt_delta=plddt_delta,
