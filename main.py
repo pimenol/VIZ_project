@@ -1,122 +1,316 @@
-# Copyright (c) 2021 Ladislav Čmolík
-#
-# Permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is 
-# hereby granted.
-#
-# THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE 
-# INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE 
-# FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS 
-# OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING 
-# OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+"""ProteinTTT Visualization — main entry point."""
 
-import sys, random, math
-from PySide6.QtCore import Qt, QSize
-from PySide6.QtWidgets import QApplication, QMainWindow, QGraphicsScene, QGraphicsView, QSizePolicy
-from PySide6.QtOpenGLWidgets import QOpenGLWidget
-from PySide6.QtGui import QBrush, QPen, QTransform, QPainter, QSurfaceFormat, QColor
+from __future__ import annotations
 
-class VisGraphicsScene(QGraphicsScene):
-    def __init__(self):
-        super(VisGraphicsScene, self).__init__()
-        self.selection = None
-        self.wasDragg = False
-        self.pen = QPen(Qt.black)
-        self.selected = QPen(Qt.red)
+import argparse
+import sys
+from pathlib import Path
 
-    def mouseReleaseEvent(self, event): 
-        if(self.wasDragg):
-            return
-        if(self.selection):
-            self.selection.setPen(self.pen)
-        item = self.itemAt(event.scenePos(), QTransform())
-        if(item):
-            item.setPen(self.selected)
-            self.selection = item
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QShortcut, QKeySequence
+from PySide6.QtWidgets import (
+    QApplication,
+    QComboBox,
+    QFileDialog,
+    QLabel,
+    QMainWindow,
+    QPushButton,
+    QSlider,
+    QSpinBox,
+    QSplitter,
+    QStatusBar,
+    QToolBar,
+    QVBoxLayout,
+    QWidget,
+)
 
+from controller import SelectionController
+from data import load_run, PtttRun
+from synthetic import make_demo_run
 
-class VisGraphicsView(QGraphicsView):
-    def __init__(self, scene, parent):
-        super(VisGraphicsView, self).__init__(scene, parent)
-        self.startX = 0.0
-        self.startY = 0.0
-        self.distance = 0.0
-        self.myScene = scene
-        self.setRenderHints(QPainter.Antialiasing | QPainter.TextAntialiasing | QPainter.SmoothPixmapTransform)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.setDragMode(QGraphicsView.ScrollHandDrag)
-        self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
-        self.setResizeAnchor(QGraphicsView.AnchorViewCenter)
-
-    def wheelEvent(self, event):
-        zoom = 1 + event.angleDelta().y()*0.001;
-        self.scale(zoom, zoom)
-        
-    def mousePressEvent(self, event):
-        self.startX = event.pos().x()
-        self.startY = event.pos().y()
-        self.myScene.wasDragg = False
-        super().mousePressEvent(event)
-
-    def mouseReleaseEvent(self, event):
-        endX = event.pos().x()
-        endY = event.pos().y()
-        deltaX = endX - self.startX
-        deltaY = endY - self.startY
-        distance = math.sqrt(deltaX*deltaX + deltaY*deltaY)
-        if(distance > 5):
-            self.myScene.wasDragg = True
-        super().mouseReleaseEvent(event)
 
 class MainWindow(QMainWindow):
-    def __init__(self):
-        super(MainWindow, self).__init__()
-        self.setWindowTitle('VIZ Qt for Python Example')
-        self.createGraphicView()
-        self.generateAndMapData()
-        #self.setMinimumSize(800, 600)
-        self.show()
+    def __init__(self, run: PtttRun) -> None:
+        super().__init__()
+        self.setWindowTitle("ProteinTTT Visualization")
+        self.resize(1400, 900)
+        self._run = run
+        self._ctrl = SelectionController(self)
 
-    def createGraphicView(self):
-        self.scene = VisGraphicsScene()
-        self.brush = [QBrush(Qt.yellow), QBrush(Qt.green), QBrush(Qt.blue)]
-        
-        format = QSurfaceFormat();
-        format.setSamples(4);
-        
-        gl = QOpenGLWidget();
-        gl.setFormat(format);
-        gl.setAutoFillBackground(True)
-        
-        self.view = VisGraphicsView(self.scene, self)
-        self.view.setViewport(gl);
-        self.view.setBackgroundBrush(QColor(255, 255, 255))
-        
-        self.setCentralWidget(self.view)
-        self.view.setGeometry(0, 0, 800, 600)
+        self._build_toolbar()
+        self._build_central(run)
+        self._build_status_bar()
+        self._build_shortcuts()
+        self._wire_controller()
 
-    def generateAndMapData(self):
-        #Generate random data
-        count = 100;
-        x = []
-        y = []
-        r = []
-        c = []
-        for i in range(0, count):
-            x.append(random.random()*600)
-            y.append(random.random()*400)
-            r.append(random.random()*50)
-            c.append(random.randint(0, 2))
+        # Initialise default comparison steps
+        default_cmp = sorted({0, run.best_step, run.n_steps - 1})
+        self._ctrl.setComparisonSteps(default_cmp)
+        self._ctrl.setCurrentStep(0)
 
-        #Map data to graphical elements
-        for i in range(0, count):
-            d = 2*r[i]
-            ellipse = self.scene.addEllipse(x[i], y[i], d, d, self.scene.pen, self.brush[c[i]])
+    # ------------------------------------------------------------------
+    # Layout
+    # ------------------------------------------------------------------
 
-def main():
+    def _build_toolbar(self) -> None:
+        tb = QToolBar("Controls", self)
+        tb.setMovable(False)
+        self.addToolBar(tb)
+
+        # File load
+        btn_load = QPushButton("Load…")
+        btn_load.clicked.connect(self._on_load)
+        tb.addWidget(btn_load)
+
+        btn_demo = QPushButton("Demo")
+        btn_demo.clicked.connect(self._on_demo)
+        tb.addWidget(btn_demo)
+
+        tb.addSeparator()
+
+        # Step slider + spinbox
+        tb.addWidget(QLabel(" Step:"))
+        self._step_slider = QSlider(Qt.Horizontal)
+        self._step_slider.setMinimum(0)
+        self._step_slider.setMaximum(self._run.n_steps - 1)
+        self._step_slider.setFixedWidth(160)
+        tb.addWidget(self._step_slider)
+
+        self._step_spin = QSpinBox()
+        self._step_spin.setMinimum(0)
+        self._step_spin.setMaximum(self._run.n_steps - 1)
+        self._step_spin.setFixedWidth(55)
+        tb.addWidget(self._step_spin)
+
+        tb.addSeparator()
+
+        # Color-mode toggle
+        tb.addWidget(QLabel(" Color:"))
+        self._color_combo = QComboBox()
+        self._color_combo.addItems(["AlphaFold", "Delta"])
+        self._color_combo.currentTextChanged.connect(self._on_color_mode)
+        tb.addWidget(self._color_combo)
+
+        tb.addSeparator()
+
+        # Residue range filter
+        tb.addWidget(QLabel(" Res:"))
+        self._res_lo = QSpinBox()
+        self._res_lo.setMinimum(0)
+        self._res_lo.setMaximum(self._run.n_residues - 1)
+        self._res_lo.setValue(0)
+        self._res_lo.setFixedWidth(55)
+        tb.addWidget(self._res_lo)
+        tb.addWidget(QLabel("–"))
+        self._res_hi = QSpinBox()
+        self._res_hi.setMinimum(0)
+        self._res_hi.setMaximum(self._run.n_residues - 1)
+        self._res_hi.setValue(self._run.n_residues - 1)
+        self._res_hi.setFixedWidth(55)
+        tb.addWidget(self._res_hi)
+        self._res_lo.valueChanged.connect(self._on_residue_range)
+        self._res_hi.valueChanged.connect(self._on_residue_range)
+
+        tb.addSeparator()
+
+        # PNG export
+        btn_png = QPushButton("Save PNG…")
+        btn_png.clicked.connect(self._on_save_png)
+        tb.addWidget(btn_png)
+
+        # Two-way bind slider ↔ spinbox ↔ controller
+        self._step_slider.valueChanged.connect(self._ctrl.setCurrentStep)
+        self._step_spin.valueChanged.connect(self._ctrl.setCurrentStep)
+
+    def _build_central(self, run: PtttRun) -> None:
+        # Lazy import views here so the imports don't fail before views exist
+        from views.line_chart import LineChartView
+        from views.heatmap import HeatmapView
+        from views.profile_view import ProfileView
+
+        self._line_chart = LineChartView(run, self._ctrl, self)
+        self._heatmap = HeatmapView(run, self._ctrl, self)
+        self._profile = ProfileView(run, self._ctrl, self)
+
+        bottom_splitter = QSplitter(Qt.Horizontal)
+        bottom_splitter.addWidget(self._heatmap)
+        bottom_splitter.addWidget(self._profile)
+        bottom_splitter.setStretchFactor(0, 3)
+        bottom_splitter.setStretchFactor(1, 2)
+
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(4)
+        layout.addWidget(self._line_chart, 2)
+        layout.addWidget(bottom_splitter, 3)
+        self.setCentralWidget(container)
+
+    def _build_status_bar(self) -> None:
+        self._status_label = QLabel()
+        sb = QStatusBar(self)
+        sb.addWidget(self._status_label, 1)
+        self.setStatusBar(sb)
+        self._update_status()
+
+    def _build_shortcuts(self) -> None:
+        def _sc(key: str, fn) -> None:
+            QShortcut(QKeySequence(key), self).activated.connect(fn)
+
+        _sc("Left",        lambda: self._step_by(-1))
+        _sc("Right",       lambda: self._step_by(+1))
+        _sc("Shift+Left",  lambda: self._step_by(-10))
+        _sc("Shift+Right", lambda: self._step_by(+10))
+        _sc("Home",        lambda: self._ctrl.setCurrentStep(0))
+        _sc("End",         lambda: self._ctrl.setCurrentStep(self._run.best_step))
+        _sc("+",           self._zoom_in)
+        _sc("-",           self._zoom_out)
+        _sc("R",           self._reset_zoom)
+        _sc("F",           self._fit_view)
+
+    # ------------------------------------------------------------------
+    # Controller wiring
+    # ------------------------------------------------------------------
+
+    def _wire_controller(self) -> None:
+        c = self._ctrl
+        c.currentStepChanged.connect(self._on_current_step_changed)
+        c.residueHoveredChanged.connect(self._update_status)
+        c.residueSelectedChanged.connect(self._update_status)
+        c.comparisonStepsChanged.connect(self._update_status)
+
+    def _on_current_step_changed(self, step: int) -> None:
+        # Keep slider and spinbox in sync (block their signals to avoid loops)
+        self._step_slider.blockSignals(True)
+        self._step_spin.blockSignals(True)
+        self._step_slider.setValue(step)
+        self._step_spin.setValue(step)
+        self._step_slider.blockSignals(False)
+        self._step_spin.blockSignals(False)
+        self._update_status()
+
+    def _update_status(self, *_) -> None:
+        c = self._ctrl
+        cmp_str = str(c.comparison_steps) if c.comparison_steps else "none"
+        self._status_label.setText(
+            f"Step: {c.current_step}  |  "
+            f"Residue selected: {c.selected_residue if c.selected_residue >= 0 else '—'}  |  "
+            f"Hovered: {c.hovered_residue if c.hovered_residue >= 0 else '—'}  |  "
+            f"Comparison: {cmp_str}"
+        )
+
+    # ------------------------------------------------------------------
+    # Toolbar callbacks
+    # ------------------------------------------------------------------
+
+    def _on_load(self) -> None:
+        tsv, _ = QFileDialog.getOpenFileName(self, "Open metrics TSV", "", "TSV files (*.tsv *.csv *.txt);;All files (*)")
+        if not tsv:
+            return
+        pdbs = QFileDialog.getExistingDirectory(self, "Select PDB folder")
+        if not pdbs:
+            return
+        try:
+            run = load_run(Path(tsv), Path(pdbs))
+        except Exception as exc:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "Load error", str(exc))
+            return
+        self._reload(run)
+
+    def _on_demo(self) -> None:
+        self._reload(make_demo_run())
+
+    def _reload(self, run: PtttRun) -> None:
+        self._run = run
+        self._step_slider.setMaximum(run.n_steps - 1)
+        self._step_spin.setMaximum(run.n_steps - 1)
+        self._res_lo.setMaximum(run.n_residues - 1)
+        self._res_hi.setMaximum(run.n_residues - 1)
+        self._res_hi.setValue(run.n_residues - 1)
+        self._line_chart.set_run(run)
+        self._heatmap.set_run(run)
+        self._profile.set_run(run)
+        default_cmp = sorted({0, run.best_step, run.n_steps - 1})
+        self._ctrl.setComparisonSteps(default_cmp)
+        self._ctrl.setCurrentStep(0)
+        self._ctrl.setSelectedResidue(-1)
+
+    def _on_color_mode(self, mode: str) -> None:
+        self._heatmap.set_color_mode("delta" if mode == "Delta" else "absolute")
+
+    def _on_residue_range(self) -> None:
+        lo = self._res_lo.value()
+        hi = self._res_hi.value()
+        if lo > hi:
+            return
+        self._heatmap.set_residue_range(lo, hi)
+        self._profile.set_residue_range(lo, hi)
+
+    def _on_save_png(self) -> None:
+        path, _ = QFileDialog.getSaveFileName(self, "Save PNG", "view.png", "PNG (*.png)")
+        if not path:
+            return
+        from PySide6.QtGui import QImage, QPainter
+        from PySide6.QtCore import QRectF
+        # Export the heatmap scene (most information-dense view)
+        scene = self._heatmap.scene()
+        sr = scene.sceneRect()
+        img = QImage(int(sr.width()), int(sr.height()), QImage.Format_ARGB32)
+        img.fill(Qt.white)
+        p = QPainter(img)
+        scene.render(p, QRectF(img.rect()), sr)
+        p.end()
+        img.save(path)
+
+    # ------------------------------------------------------------------
+    # Keyboard helpers
+    # ------------------------------------------------------------------
+
+    def _step_by(self, delta: int) -> None:
+        s = max(0, min(self._run.n_steps - 1, self._ctrl.current_step + delta))
+        self._ctrl.setCurrentStep(s)
+
+    def _zoom_in(self) -> None:
+        self._heatmap.scale(1.2, 1.2)
+
+    def _zoom_out(self) -> None:
+        self._heatmap.scale(1 / 1.2, 1 / 1.2)
+
+    def _reset_zoom(self) -> None:
+        self._heatmap.resetTransform()
+
+    def _fit_view(self) -> None:
+        self._heatmap.fitInView(self._heatmap.scene().sceneRect(), Qt.KeepAspectRatio)
+
+
+def _parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(description="ProteinTTT visualization")
+    grp = p.add_mutually_exclusive_group(required=True)
+    grp.add_argument("--demo", action="store_true", help="Load synthetic demo data")
+    grp.add_argument("--tsv", type=Path, metavar="FILE", help="Metrics TSV path")
+    p.add_argument("--pdbs", type=Path, metavar="DIR", help="PDB folder (required with --tsv)")
+    return p.parse_args()
+
+
+def main() -> None:
+    args = _parse_args()
+    if not args.demo and args.pdbs is None:
+        print("error: --pdbs is required when using --tsv", file=sys.stderr)
+        sys.exit(1)
+
     app = QApplication(sys.argv)
-    ex = MainWindow()
-    sys.exit(app.exec_())
+    app.setStyle("Fusion")
+
+    if args.demo:
+        run = make_demo_run()
+    else:
+        run = load_run(args.tsv, args.pdbs)
+
+    win = MainWindow(run)
+    win.show()
+    sys.exit(app.exec())
+
 
 if __name__ == "__main__":
     main()
