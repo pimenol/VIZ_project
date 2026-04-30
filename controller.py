@@ -18,10 +18,6 @@ class SelectionController(QObject):
         self._selected: int = -1
         self._comparison: list[int] = []
 
-    # ------------------------------------------------------------------
-    # Setters — emit only when the value actually changes
-    # ------------------------------------------------------------------
-
     def setCurrentStep(self, step: int) -> None:
         if step != self._current_step:
             self._current_step = step
@@ -38,21 +34,15 @@ class SelectionController(QObject):
             self.residueSelectedChanged.emit(residue)
 
     def setComparisonSteps(self, steps: list[int]) -> None:
-        if steps != self._comparison:
-            self._comparison = list(steps)
-            self.comparisonStepsChanged.emit(list(steps))
+        normalized = sorted(set(steps))
+        if normalized != self._comparison:
+            self._comparison = normalized
+            self.comparisonStepsChanged.emit(list(normalized))
 
     def toggleComparisonStep(self, step: int) -> None:
-        steps = list(self._comparison)
-        if step in steps:
-            steps.remove(step)
-        else:
-            steps.append(step)
-        self.setComparisonSteps(steps)
-
-    # ------------------------------------------------------------------
-    # Accessors
-    # ------------------------------------------------------------------
+        steps = set(self._comparison)
+        steps.symmetric_difference_update({step})
+        self.setComparisonSteps(list(steps))
 
     @property
     def current_step(self) -> int:
@@ -68,4 +58,4 @@ class SelectionController(QObject):
 
     @property
     def comparison_steps(self) -> list[int]:
-        return list(self._comparison)
+        return self._comparison

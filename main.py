@@ -28,6 +28,9 @@ from controller import SelectionController
 from data import load_run, PtttRun
 from synthetic import make_demo_run
 
+_SLIDER_WIDTH = 160
+_SPIN_WIDTH = 55
+
 
 class MainWindow(QMainWindow):
     def __init__(self, run: PtttRun) -> None:
@@ -43,21 +46,22 @@ class MainWindow(QMainWindow):
         self._build_shortcuts()
         self._wire_controller()
 
-        # Initialise default comparison steps
         default_cmp = sorted({0, run.best_step, run.n_steps - 1})
         self._ctrl.setComparisonSteps(default_cmp)
         self._ctrl.setCurrentStep(0)
 
-    # ------------------------------------------------------------------
-    # Layout
-    # ------------------------------------------------------------------
+    def _make_step_spinbox(self, max_value: int, width: int = _SPIN_WIDTH) -> QSpinBox:
+        sb = QSpinBox()
+        sb.setMinimum(0)
+        sb.setMaximum(max_value)
+        sb.setFixedWidth(width)
+        return sb
 
     def _build_toolbar(self) -> None:
         tb = QToolBar("Controls", self)
         tb.setMovable(False)
         self.addToolBar(tb)
 
-        # File load
         btn_load = QPushButton("Load…")
         btn_load.clicked.connect(self._on_load)
         tb.addWidget(btn_load)
@@ -68,23 +72,18 @@ class MainWindow(QMainWindow):
 
         tb.addSeparator()
 
-        # Step slider + spinbox
         tb.addWidget(QLabel(" Step:"))
         self._step_slider = QSlider(Qt.Horizontal)
         self._step_slider.setMinimum(0)
         self._step_slider.setMaximum(self._run.n_steps - 1)
-        self._step_slider.setFixedWidth(160)
+        self._step_slider.setFixedWidth(_SLIDER_WIDTH)
         tb.addWidget(self._step_slider)
 
-        self._step_spin = QSpinBox()
-        self._step_spin.setMinimum(0)
-        self._step_spin.setMaximum(self._run.n_steps - 1)
-        self._step_spin.setFixedWidth(55)
+        self._step_spin = self._make_step_spinbox(self._run.n_steps - 1)
         tb.addWidget(self._step_spin)
 
         tb.addSeparator()
 
-        # Color-mode toggle
         tb.addWidget(QLabel(" Color:"))
         self._color_combo = QComboBox()
         self._color_combo.addItems(["AlphaFold", "Delta"])
@@ -93,37 +92,28 @@ class MainWindow(QMainWindow):
 
         tb.addSeparator()
 
-        # Residue range filter
         tb.addWidget(QLabel(" Res:"))
-        self._res_lo = QSpinBox()
-        self._res_lo.setMinimum(0)
-        self._res_lo.setMaximum(self._run.n_residues - 1)
+        self._res_lo = self._make_step_spinbox(self._run.n_residues - 1)
         self._res_lo.setValue(0)
-        self._res_lo.setFixedWidth(55)
         tb.addWidget(self._res_lo)
         tb.addWidget(QLabel("–"))
-        self._res_hi = QSpinBox()
-        self._res_hi.setMinimum(0)
-        self._res_hi.setMaximum(self._run.n_residues - 1)
+        self._res_hi = self._make_step_spinbox(self._run.n_residues - 1)
         self._res_hi.setValue(self._run.n_residues - 1)
-        self._res_hi.setFixedWidth(55)
         tb.addWidget(self._res_hi)
         self._res_lo.valueChanged.connect(self._on_residue_range)
         self._res_hi.valueChanged.connect(self._on_residue_range)
 
         tb.addSeparator()
 
-        # PNG export
         btn_png = QPushButton("Save PNG…")
         btn_png.clicked.connect(self._on_save_png)
         tb.addWidget(btn_png)
 
-        # Two-way bind slider ↔ spinbox ↔ controller
         self._step_slider.valueChanged.connect(self._ctrl.setCurrentStep)
         self._step_spin.valueChanged.connect(self._ctrl.setCurrentStep)
 
     def _build_central(self, run: PtttRun) -> None:
-        # Lazy import views here so the imports don't fail before views exist
+        # Lazy-import views so module load doesn't pull Qt OpenGL until needed.
         from views.line_chart import LineChartView
         from views.heatmap import HeatmapView
         from views.profile_view import ProfileView
@@ -168,10 +158,6 @@ class MainWindow(QMainWindow):
         _sc("R",           self._reset_zoom)
         _sc("F",           self._fit_view)
 
-    # ------------------------------------------------------------------
-    # Controller wiring
-    # ------------------------------------------------------------------
-
     def _wire_controller(self) -> None:
         c = self._ctrl
         c.currentStepChanged.connect(self._on_current_step_changed)
@@ -180,7 +166,7 @@ class MainWindow(QMainWindow):
         c.comparisonStepsChanged.connect(self._update_status)
 
     def _on_current_step_changed(self, step: int) -> None:
-        # Keep slider and spinbox in sync (block their signals to avoid loops)
+        # Block signals on slider/spin to prevent the recursive emit loop they'd otherwise form.
         self._step_slider.blockSignals(True)
         self._step_spin.blockSignals(True)
         self._step_slider.setValue(step)
@@ -198,10 +184,6 @@ class MainWindow(QMainWindow):
             f"Hovered: {c.hovered_residue if c.hovered_residue >= 0 else '—'}  |  "
             f"Comparison: {cmp_str}"
         )
-
-    # ------------------------------------------------------------------
-    # Toolbar callbacks
-    # ------------------------------------------------------------------
 
     def _on_load(self) -> None:
         tsv, _ = QFileDialog.getOpenFileName(self, "Open metrics TSV", "", "TSV files (*.tsv *.csv *.txt);;All files (*)")
@@ -263,10 +245,6 @@ class MainWindow(QMainWindow):
         p.end()
         img.save(path)
 
-    # ------------------------------------------------------------------
-    # Keyboard helpers
-    # ------------------------------------------------------------------
-
     def _step_by(self, delta: int) -> None:
         s = max(0, min(self._run.n_steps - 1, self._ctrl.current_step + delta))
         self._ctrl.setCurrentStep(s)
@@ -314,3 +292,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+

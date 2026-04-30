@@ -16,7 +16,6 @@ from PySide6.QtGui import (
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import (
     QGraphicsEllipseItem,
-    QGraphicsItem,
     QGraphicsLineItem,
     QGraphicsPathItem,
     QGraphicsRectItem,
@@ -30,7 +29,6 @@ from chart_axes import nice_ticks
 from controller import SelectionController
 from data import PtttRun
 
-# Panel layout (in scene coords)
 _LEFT = 60.0
 _RIGHT_MARGIN = 20.0
 _TOP = 10.0
@@ -39,29 +37,31 @@ _BOT_MARGIN = 28.0
 _TOTAL_W = 700.0
 _TOTAL_H = 480.0
 
-# Relative panel heights: pLDDT 60%, lDDT 40%
 _PANEL_FRACS = [0.60, 0.40]
 _PANEL_TITLES = ["pLDDT", "lDDT"]
-_PANEL_COLORS = [
-    QColor(0, 83, 214),    # blue — pLDDT
-    QColor(140, 40, 160),  # purple — lDDT
-]
+_PANEL_COLORS = [QColor(0, 83, 214), QColor(140, 40, 160)]
+_PANEL_PRECISIONS = [".2f", ".3f"]
 
 
-def _series_for_panel(run: PtttRun, idx: int) -> np.ndarray:
-    return [run.plddt_mean, run.lddt][idx]
-
-
-def _panel_rects(total_h: float) -> list[QRectF]:
-    """Return the data-plot QRectF for each of the 4 panels."""
-    plot_h = total_h - _TOP - _BOT_MARGIN - _GAP * 3
+def _build_panel_rects() -> list[QRectF]:
+    n_gaps = max(0, len(_PANEL_FRACS) - 1)
+    plot_h = _TOTAL_H - _TOP - _BOT_MARGIN - _GAP * n_gaps
+    width = _TOTAL_W - _LEFT - _RIGHT_MARGIN
     rects = []
     y = _TOP
     for frac in _PANEL_FRACS:
         h = plot_h * frac
-        rects.append(QRectF(_LEFT, y, _TOTAL_W - _LEFT - _RIGHT_MARGIN, h))
+        rects.append(QRectF(_LEFT, y, width, h))
         y += h + _GAP
     return rects
+
+
+_RECTS = _build_panel_rects()
+_BOTTOM_PANEL = len(_PANEL_FRACS) - 1
+
+
+def _series_for(run: PtttRun, idx: int) -> np.ndarray:
+    return (run.plddt_mean, run.lddt)[idx]
 
 
 class LineChartScene(QGraphicsScene):
@@ -71,7 +71,6 @@ class LineChartScene(QGraphicsScene):
         self._step_line: QGraphicsLineItem | None = None
         self._crosshair_x: QGraphicsLineItem | None = None
         self._crosshair_labels: list[QGraphicsTextItem] = []
-        self._panel_items: list[list[QGraphicsItem]] = [[] for _ in range(2)]
         self._build()
 
     def set_run(self, run: PtttRun) -> None:
@@ -80,40 +79,28 @@ class LineChartScene(QGraphicsScene):
         self._step_line = None
         self._crosshair_x = None
         self._crosshair_labels = []
-        self._panel_items = [[] for _ in range(2)]
         self._build()
 
     def move_step_line(self, step: int) -> None:
         if self._step_line is None:
             return
-        rects = _panel_rects(_TOTAL_H)
-        x = self._step_to_x(step, rects[0])
-        top = rects[0].top()
-        bot = rects[-1].bottom()
-        self._step_line.setLine(x, top, x, bot)
+        x = self._step_to_x(step, _RECTS[0])
+        self._step_line.setLine(x, _RECTS[0].top(), x, _RECTS[-1].bottom())
 
     def show_crosshair(self, step: int, scene_x: float) -> None:
         if self._crosshair_x is None:
             return
-        rects = _panel_rects(_TOTAL_H)
-        top = rects[0].top()
-        bot = rects[-1].bottom()
-        self._crosshair_x.setLine(scene_x, top, scene_x, bot)
+        self._crosshair_x.setLine(scene_x, _RECTS[0].top(), scene_x, _RECTS[-1].bottom())
         self._crosshair_x.setVisible(True)
 
         run = self._run
-        series_vals = [
-            run.plddt_mean[step] if step < run.n_steps else math.nan,
-            run.lddt[step] if step < run.n_steps else math.nan,
-        ]
-        labels = [
-            f"pLDDT={series_vals[0]:.2f}" if not math.isnan(series_vals[0]) else "pLDDT=—",
-            f"lDDT={series_vals[1]:.3f}" if not math.isnan(series_vals[1]) else "lDDT=—",
-        ]
-        for i, (lbl_item, lbl_text, rect) in enumerate(
-            zip(self._crosshair_labels, labels, rects)
+        in_range = step < run.n_steps
+        for i, (lbl_item, name, prec, rect) in enumerate(
+            zip(self._crosshair_labels, _PANEL_TITLES, _PANEL_PRECISIONS, _RECTS)
         ):
-            lbl_item.setPlainText(lbl_text)
+            v = _series_for(run, i)[step] if in_range else math.nan
+            text = f"{name}=—" if math.isnan(v) else f"{name}={v:{prec}}"
+            lbl_item.setPlainText(text)
             lbl_item.setPos(scene_x + 4, rect.top() + 2)
             lbl_item.setVisible(True)
 
@@ -123,21 +110,13 @@ class LineChartScene(QGraphicsScene):
         for lbl in self._crosshair_labels:
             lbl.setVisible(False)
 
-    # ------------------------------------------------------------------
-    # Internal build
-    # ------------------------------------------------------------------
-
     def _build(self) -> None:
-        run = self._run
-        rects = _panel_rects(_TOTAL_H)
-
         for i, (rect, title, color) in enumerate(
-            zip(rects, _PANEL_TITLES, _PANEL_COLORS)
+            zip(_RECTS, _PANEL_TITLES, _PANEL_COLORS)
         ):
             self._draw_panel(i, rect, title, color)
 
-        # Shared X axis label
-        xr = rects[-1]
+        xr = _RECTS[-1]
         lbl = self.addText("Step")
         lbl.setDefaultTextColor(QColor(60, 60, 60))
         lbl.setPos(
@@ -146,19 +125,18 @@ class LineChartScene(QGraphicsScene):
         )
         lbl.setZValue(5)
 
-        # Current-step vertical line
-        pen = QPen(QColor(255, 100, 0), 1.5, Qt.DashLine)
-        pen.setCosmetic(True)
-        sl = QGraphicsLineItem(_LEFT, rects[0].top(), _LEFT, rects[-1].bottom())
-        sl.setPen(pen)
+        top, bot = _RECTS[0].top(), _RECTS[-1].bottom()
+        step_pen = QPen(QColor(255, 100, 0), 1.5, Qt.DashLine)
+        step_pen.setCosmetic(True)
+        sl = QGraphicsLineItem(_LEFT, top, _LEFT, bot)
+        sl.setPen(step_pen)
         sl.setZValue(18)
         self.addItem(sl)
         self._step_line = sl
 
-        # Crosshair (hidden by default)
         ch_pen = QPen(QColor(120, 120, 120), 1, Qt.DotLine)
         ch_pen.setCosmetic(True)
-        ch = QGraphicsLineItem(_LEFT, rects[0].top(), _LEFT, rects[-1].bottom())
+        ch = QGraphicsLineItem(_LEFT, top, _LEFT, bot)
         ch.setPen(ch_pen)
         ch.setZValue(17)
         ch.setVisible(False)
@@ -166,12 +144,10 @@ class LineChartScene(QGraphicsScene):
         self._crosshair_x = ch
 
         self._crosshair_labels = []
-        for rect in rects:
+        for _ in _RECTS:
             t = self.addText("")
             t.setDefaultTextColor(QColor(60, 60, 60))
-            font = t.font()
-            font.setPointSize(7)
-            t.setFont(font)
+            font = t.font(); font.setPointSize(7); t.setFont(font)
             t.setZValue(17)
             t.setVisible(False)
             self._crosshair_labels.append(t)
@@ -180,27 +156,22 @@ class LineChartScene(QGraphicsScene):
 
     def _draw_panel(self, idx: int, rect: QRectF, title: str, color: QColor) -> None:
         run = self._run
-        series = _series_for_panel(run, idx)
-        all_nan = np.all(np.isnan(series))
+        series = _series_for(run, idx)
+        is_bottom = idx == _BOTTOM_PANEL
 
-        # Background
         bg = QGraphicsRectItem(rect)
         bg.setBrush(QColor(250, 250, 250))
         bg.setPen(QPen(QColor(200, 200, 200), 0.5))
         bg.setZValue(1)
         self.addItem(bg)
 
-        # Title
         t = self.addText(title)
         t.setDefaultTextColor(QColor(80, 80, 80))
-        font = t.font()
-        font.setPointSize(8)
-        font.setBold(True)
-        t.setFont(font)
+        font = t.font(); font.setPointSize(8); font.setBold(True); t.setFont(font)
         t.setPos(rect.left() + 4, rect.top() + 2)
         t.setZValue(10)
 
-        if all_nan:
+        if np.all(np.isnan(series)):
             nd = self.addText("no data")
             nd.setDefaultTextColor(QColor(160, 160, 160))
             nd.setPos(
@@ -208,7 +179,7 @@ class LineChartScene(QGraphicsScene):
                 rect.center().y() - nd.boundingRect().height() / 2,
             )
             nd.setZValue(10)
-            self._draw_x_axis(rect, run.n_steps - 1, idx == 3)
+            self._draw_x_axis(rect, run.n_steps - 1, is_bottom)
             return
 
         y_lo = float(np.nanmin(series))
@@ -216,24 +187,17 @@ class LineChartScene(QGraphicsScene):
         if y_lo == y_hi:
             y_lo -= 1; y_hi += 1
 
-        # Y axis ticks + grid
-        y_ticks = nice_ticks(y_lo, y_hi, 4)
-        ax_pen = QPen(QColor(80, 80, 80), 0.8)
-        ax_pen.setCosmetic(True)
-        tick_pen = ax_pen
-        grid_pen = QPen(QColor(220, 220, 220), 0.5, Qt.DashLine)
-        grid_pen.setCosmetic(True)
+        ax_pen = QPen(QColor(80, 80, 80), 0.8); ax_pen.setCosmetic(True)
+        grid_pen = QPen(QColor(220, 220, 220), 0.5, Qt.DashLine); grid_pen.setCosmetic(True)
         lbl_color = QColor(60, 60, 60)
 
-        for v in y_ticks:
+        for v in nice_ticks(y_lo, y_hi, 4):
             sy = self._val_to_y(v, y_lo, y_hi, rect)
             tl = QGraphicsLineItem(rect.left() - 4, sy, rect.left(), sy)
-            tl.setPen(tick_pen)
-            tl.setZValue(5)
+            tl.setPen(ax_pen); tl.setZValue(5)
             self.addItem(tl)
             gl = QGraphicsLineItem(rect.left(), sy, rect.right(), sy)
-            gl.setPen(grid_pen)
-            gl.setZValue(2)
+            gl.setPen(grid_pen); gl.setZValue(2)
             self.addItem(gl)
             lbl = self.addText(f"{v:g}")
             lbl.setDefaultTextColor(lbl_color)
@@ -242,17 +206,14 @@ class LineChartScene(QGraphicsScene):
             lbl.setPos(rect.left() - 6 - br.width(), sy - br.height() / 2)
             lbl.setZValue(5)
 
-        # Border
-        border = QGraphicsLineItem(rect.left(), rect.top(), rect.left(), rect.bottom())
-        border.setPen(ax_pen)
-        border.setZValue(6)
-        self.addItem(border)
-        hline = QGraphicsLineItem(rect.left(), rect.bottom(), rect.right(), rect.bottom())
-        hline.setPen(ax_pen)
-        hline.setZValue(6)
-        self.addItem(hline)
+        for x1, y1, x2, y2 in [
+            (rect.left(),  rect.top(),    rect.left(),  rect.bottom()),
+            (rect.left(),  rect.bottom(), rect.right(), rect.bottom()),
+        ]:
+            ln = QGraphicsLineItem(x1, y1, x2, y2)
+            ln.setPen(ax_pen); ln.setZValue(6)
+            self.addItem(ln)
 
-        # Data curve
         path = QPainterPath()
         started = False
         for s_int in range(run.n_steps):
@@ -262,23 +223,19 @@ class LineChartScene(QGraphicsScene):
                 continue
             sx = self._step_to_x(s_int, rect)
             sy = self._val_to_y(v, y_lo, y_hi, rect)
-            if not started:
+            if started:
+                path.lineTo(sx, sy)
+            else:
                 path.moveTo(sx, sy)
                 started = True
-            else:
-                path.lineTo(sx, sy)
 
-        curve_pen = QPen(color, 1.8)
-        curve_pen.setCosmetic(True)
+        curve_pen = QPen(color, 1.8); curve_pen.setCosmetic(True)
         curve_item = QGraphicsPathItem(path)
-        curve_item.setPen(curve_pen)
-        curve_item.setZValue(8)
+        curve_item.setPen(curve_pen); curve_item.setZValue(8)
         self.addItem(curve_item)
 
-        # Peak pLDDT marker (panel 0 only)
         if idx == 0:
-            bs = run.best_step
-            bv = run.best_plddt
+            bs, bv = run.best_step, run.best_plddt
             bx = self._step_to_x(bs, rect)
             by = self._val_to_y(bv, y_lo, y_hi, rect)
             dot = QGraphicsEllipseItem(bx - 4, by - 4, 8, 8)
@@ -292,7 +249,7 @@ class LineChartScene(QGraphicsScene):
             peak_lbl.setPos(bx + 6, by - peak_lbl.boundingRect().height() / 2)
             peak_lbl.setZValue(12)
 
-        self._draw_x_axis(rect, run.n_steps - 1, idx == 3)
+        self._draw_x_axis(rect, run.n_steps - 1, is_bottom)
 
     def _draw_x_axis(self, rect: QRectF, max_step: int, show_labels: bool) -> None:
         ax_pen = QPen(QColor(80, 80, 80), 0.8)
@@ -326,13 +283,10 @@ class LineChartScene(QGraphicsScene):
         return max(0, min(self._run.n_steps - 1, s))
 
     def in_any_panel(self, scene_pos: QPointF) -> bool:
-        for rect in _panel_rects(_TOTAL_H):
-            if rect.contains(scene_pos):
-                return True
-        return False
+        return any(rect.contains(scene_pos) for rect in _RECTS)
 
     def first_rect(self) -> QRectF:
-        return _panel_rects(_TOTAL_H)[0]
+        return _RECTS[0]
 
 
 class LineChartView(QGraphicsView):
@@ -341,8 +295,6 @@ class LineChartView(QGraphicsView):
         super().__init__(self._lscene, parent)
         self._ctrl = ctrl
         self._run = run
-        self._dragging = False
-        self._drag_start_x = 0.0
 
         fmt = QSurfaceFormat()
         fmt.setSamples(4)
@@ -370,16 +322,12 @@ class LineChartView(QGraphicsView):
             rect = self._lscene.first_rect()
             step = self._lscene.nearest_step(sp.x(), rect)
             self._lscene.show_crosshair(step, self._lscene._step_to_x(step, rect))
-            vals = [
-                self._run.plddt_mean[step],
-                self._run.lddt[step],
-            ]
-            def fmt(v):
-                return f"{v:.3f}" if not math.isnan(v) else "—"
-            QToolTip.showText(
-                event.globalPos(),
-                f"Step {step}\npLDDT={fmt(vals[0])}  lDDT={fmt(vals[1])}",
-            )
+            run = self._run
+            parts = [f"Step {step}"]
+            for name, ser in zip(_PANEL_TITLES, (run.plddt_mean, run.lddt)):
+                v = ser[step]
+                parts.append(f"{name}={'—' if math.isnan(v) else f'{v:.3f}'}")
+            QToolTip.showText(event.globalPos(), "  ".join(parts))
         else:
             self._lscene.hide_crosshair()
             QToolTip.hideText()
