@@ -3,7 +3,6 @@ from typing import Dict, Tuple
 
 import numpy as np
 
-
 @dataclass
 class _ProteinBackbone:
   atom_positions: np.ndarray  

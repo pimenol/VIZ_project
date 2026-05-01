@@ -228,7 +228,7 @@ class _SsEvolutionView(QGraphicsView):
             rect.setPen(cell_pen)
             rect.setZValue(5)
             self._scene.addItem(rect)
-            if cell_w >= 14.0:
+            if cell_w >= 10.0:
                 ltr = QGraphicsSimpleTextItem(SS_LETTERS[label])
                 ltr.setFont(font_letter)
                 ltr.setBrush(QColor(35, 35, 35))

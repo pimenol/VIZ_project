@@ -102,7 +102,7 @@ class SecondaryStructureTrack(QGraphicsView):
                 lo, hi, label = seg
                 QToolTip.showText(
                     event.globalPos(),
-                    f"{SS_NAMES[label]} · residues {lo}–{hi} · length {hi - lo + 1}",
+                    f"{SS_NAMES[label]} · residues {lo}-{hi} · length {hi - lo + 1}",
                 )
         super().mouseMoveEvent(event)
 

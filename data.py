@@ -296,6 +296,34 @@ def load_run(
     )
 
 
+def load_run_from_dir(
+    run_dir: Path,
+    embedding_mode: Literal["esm", "ca"] = "esm",
+    recompute_ss: bool = False,
+) -> PtttRun:
+    if not run_dir.is_dir():
+        raise FileNotFoundError(f"Run directory not found: {run_dir}")
+
+    pdbs_dir = run_dir / "pdbs"
+    if not pdbs_dir.is_dir():
+        raise FileNotFoundError(f"Expected 'pdbs/' subdirectory in {run_dir}")
+
+    tsvs = sorted(run_dir.glob("*_log.tsv")) or sorted(run_dir.glob("*.tsv"))
+    if not tsvs:
+        raise FileNotFoundError(f"No TSV file found in {run_dir}")
+    if len(tsvs) > 1:
+        raise ValueError(
+            f"Multiple TSV files in {run_dir}: {[p.name for p in tsvs]}"
+        )
+
+    return load_run(
+        tsv_path=tsvs[0],
+        pdbs_dir=pdbs_dir,
+        embedding_mode=embedding_mode,
+        recompute_ss=recompute_ss,
+    )
+
+
 def _resolve_embeddings(
     embedding_mode: Literal["esm", "ca"],
     embeddings_dir: Path | None,

@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from controller import SelectionController
-from data import load_run, PtttRun
+from data import load_run, load_run_from_dir, PtttRun
 from synthetic import make_demo_run
 from views.embedding_view import EmbeddingView
 from views.heatmap import HeatmapView
@@ -227,14 +227,11 @@ class MainWindow(QMainWindow):
         )
 
     def _on_load(self) -> None:
-        tsv, _ = QFileDialog.getOpenFileName(self, "Open metrics TSV", "", "TSV files (*.tsv *.csv *.txt);;All files (*)")
-        if not tsv:
-            return
-        pdbs = QFileDialog.getExistingDirectory(self, "Select PDB folder")
-        if not pdbs:
+        run_dir = QFileDialog.getExistingDirectory(self, "Select run directory")
+        if not run_dir:
             return
         try:
-            run = load_run(Path(tsv), Path(pdbs))
+            run = load_run_from_dir(Path(run_dir))
         except Exception as exc:
             QMessageBox.critical(self, "Load error", str(exc))
             return
