@@ -14,9 +14,12 @@ from PySide6.QtGui import (
 )
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import (
+    QComboBox,
     QGraphicsScene,
     QGraphicsTextItem,
     QGraphicsView,
+    QHBoxLayout,
+    QLabel,
     QToolTip,
     QVBoxLayout,
     QWidget,
@@ -27,7 +30,12 @@ from PySide6.QtWidgets import (
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from chart_axes import draw_axes, nice_ticks
-from colors import alphafold_color_array
+from colors import (
+    SS_COLORS,
+    SS_LETTERS,
+    alphafold_color_array,
+    ss_color_array,
+)
 from controller import SelectionController
 from data import PtttRun
 from points_item import PointsItem
@@ -62,6 +70,8 @@ class EmbeddingScene(QGraphicsScene):
         self._y_lo = self._y_hi = 0.0
         self._method = "pca"
         self._current_step = 0
+        self._color_mode = "plddt"
+        self._legend_items: list = []
 
         self._points = PointsItem(
             np.zeros((0, 2), dtype=np.float32),
@@ -96,6 +106,13 @@ class EmbeddingScene(QGraphicsScene):
         if 0 <= step < self._run.n_steps:
             self._current_step = step
             self._refresh_step()
+
+    def set_color_mode(self, mode: str) -> None:
+        if mode == self._color_mode:
+            return
+        self._color_mode = mode
+        self._refresh_step()
+        self._rebuild_legend()
 
     def points_item(self) -> PointsItem:
         return self._points
@@ -185,12 +202,47 @@ class EmbeddingScene(QGraphicsScene):
             return
         s = self._current_step
         coords = self._coords_scene[s]                       # (N, 2)
-        plddt = self._run.plddt_matrix[s]
-        colors = alphafold_color_array(plddt)
+        if self._color_mode == "ss":
+            colors = ss_color_array(self._run.ss_matrix[s])
+        else:
+            colors = alphafold_color_array(self._run.plddt_matrix[s])
         self._points.set_data(coords, colors)
         self._title.setPlainText(f"Embedding 2D — step {s} ({self._method.upper()})")
         self._title.setPos(_LEFT, 6)
         self._title.setZValue(11)
+
+    def _rebuild_legend(self) -> None:
+        from PySide6.QtWidgets import QGraphicsRectItem, QGraphicsSimpleTextItem
+        from PySide6.QtGui import QBrush, QPen, QFont
+
+        for item in self._legend_items:
+            self.removeItem(item)
+        self._legend_items = []
+
+        if self._color_mode != "ss":
+            return
+
+        font = QFont()
+        font.setPointSize(7)
+        sw = 10.0
+        gap = 4.0
+        x = _LEFT + _PLOT_W - 100.0
+        y = _TOP + 4.0
+        for label in (0, 1, 2):
+            rect = QGraphicsRectItem(x, y, sw, sw)
+            rect.setBrush(QBrush(SS_COLORS[label]))
+            rect.setPen(QPen(QColor(80, 80, 80), 0.5))
+            rect.setZValue(11)
+            self.addItem(rect)
+            self._legend_items.append(rect)
+            txt = QGraphicsSimpleTextItem(SS_LETTERS[label])
+            txt.setFont(font)
+            txt.setBrush(QColor(50, 50, 50))
+            txt.setPos(x + sw + 2.0, y - 2.0)
+            txt.setZValue(11)
+            self.addItem(txt)
+            self._legend_items.append(txt)
+            x += sw + 2.0 + 14.0 + gap
 
     # Hover/click translation helpers — public for the View to call.
     def residue_at(self, scene_point: QPointF) -> int:
@@ -224,9 +276,21 @@ class EmbeddingView(QWidget):
         self._gview.mouseMoveEvent = self._view_mouse_move
         self._gview.mousePressEvent = self._view_mouse_press
 
+        toolbar = QWidget(self)
+        tb = QHBoxLayout(toolbar)
+        tb.setContentsMargins(4, 2, 4, 2)
+        tb.setSpacing(4)
+        tb.addWidget(QLabel("Color:"))
+        self._color_combo = QComboBox()
+        self._color_combo.addItems(["pLDDT", "Secondary structure"])
+        self._color_combo.currentTextChanged.connect(self._on_color_mode_changed)
+        tb.addWidget(self._color_combo)
+        tb.addStretch(1)
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
+        layout.addWidget(toolbar)
         layout.addWidget(self._gview)
 
         ctrl.currentStepChanged.connect(self._scene.set_current_step)
@@ -234,6 +298,10 @@ class EmbeddingView(QWidget):
     def set_run(self, run: PtttRun) -> None:
         self._run = run
         self._scene.set_run(run)
+
+    def _on_color_mode_changed(self, text: str) -> None:
+        mode = "ss" if text == "Secondary structure" else "plddt"
+        self._scene.set_color_mode(mode)
 
     def coords_2d_data(self) -> np.ndarray | None:
         return self._scene.coords_2d_data()

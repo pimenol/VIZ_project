@@ -19,6 +19,24 @@ SS_NAMES: dict[int, str] = {0: "Helix", 1: "Sheet", 2: "Coil"}
 def ss_color(label: int) -> QColor:
     return SS_COLORS.get(int(label), SS_COLORS[2])
 
+
+_SS_PACKED = np.array(
+    [
+        (np.uint32(0xFF) << 24)
+        | (np.uint32(c.red()) << 16)
+        | (np.uint32(c.green()) << 8)
+        | np.uint32(c.blue())
+        for c in (SS_COLORS[0], SS_COLORS[1], SS_COLORS[2])
+    ],
+    dtype=np.uint32,
+)
+
+
+def ss_color_array(ss_row: np.ndarray) -> np.ndarray:
+    """Map [N] uint8 SS labels (0=H, 1=E, 2=C) to packed ARGB32 uint32."""
+    idx = np.clip(np.asarray(ss_row, dtype=np.int64), 0, 2)
+    return _SS_PACKED[idx]
+
 _DIV_NEG = np.array([220, 50, 47], dtype=np.float32)    # red (negative delta)
 _DIV_MID = np.array([255, 255, 255], dtype=np.float32)  # white (no change)
 _DIV_POS = np.array([38, 139, 210], dtype=np.float32)   # blue (positive delta)
