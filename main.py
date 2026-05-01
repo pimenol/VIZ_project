@@ -112,6 +112,17 @@ class MainWindow(QMainWindow):
 
         tb.addSeparator()
 
+        tb.addWidget(QLabel(" SS:"))
+        self._ss_filter_checks: dict[int, QCheckBox] = {}
+        for label, name in ((0, "H"), (1, "E"), (2, "C")):
+            cb = QCheckBox(name)
+            cb.setChecked(True)
+            cb.toggled.connect(self._on_ss_filter_toggled)
+            tb.addWidget(cb)
+            self._ss_filter_checks[label] = cb
+
+        tb.addSeparator()
+
         btn_png = QPushButton("Save PNG…")
         btn_png.clicked.connect(self._on_save_png)
         tb.addWidget(btn_png)
@@ -262,6 +273,10 @@ class MainWindow(QMainWindow):
 
     def _on_ss_stratified_toggled(self, checked: bool) -> None:
         self._line_chart.set_ss_visible(checked)
+
+    def _on_ss_filter_toggled(self, _checked: bool) -> None:
+        allowed = {label for label, cb in self._ss_filter_checks.items() if cb.isChecked()}
+        self._ctrl.setSsClassFilter(allowed)
 
     def _on_residue_range(self) -> None:
         lo = self._res_lo.value()

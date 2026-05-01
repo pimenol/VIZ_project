@@ -72,6 +72,7 @@ class EmbeddingScene(QGraphicsScene):
         self._current_step = 0
         self._color_mode = "plddt"
         self._legend_items: list = []
+        self._ss_filter: set[int] = {0, 1, 2}
 
         self._points = PointsItem(
             np.zeros((0, 2), dtype=np.float32),
@@ -113,6 +114,10 @@ class EmbeddingScene(QGraphicsScene):
         self._color_mode = mode
         self._refresh_step()
         self._rebuild_legend()
+
+    def set_ss_filter(self, allowed: set[int]) -> None:
+        self._ss_filter = set(allowed)
+        self._apply_ss_filter()
 
     def points_item(self) -> PointsItem:
         return self._points
@@ -210,6 +215,17 @@ class EmbeddingScene(QGraphicsScene):
         self._title.setPlainText(f"Embedding 2D — step {s} ({self._method.upper()})")
         self._title.setPos(_LEFT, 6)
         self._title.setZValue(11)
+        self._apply_ss_filter()
+
+    def _apply_ss_filter(self) -> None:
+        if self._coords_scene.size == 0:
+            return
+        if self._ss_filter == {0, 1, 2}:
+            self._points.set_alpha_mask(None)
+            return
+        ss_row = self._run.ss_matrix[self._current_step]
+        mask = np.isin(ss_row, list(self._ss_filter))
+        self._points.set_alpha_mask(mask)
 
     def _rebuild_legend(self) -> None:
         from PySide6.QtWidgets import QGraphicsRectItem, QGraphicsSimpleTextItem
@@ -294,6 +310,7 @@ class EmbeddingView(QWidget):
         layout.addWidget(self._gview)
 
         ctrl.currentStepChanged.connect(self._scene.set_current_step)
+        ctrl.ssClassFilterChanged.connect(self._scene.set_ss_filter)
 
     def set_run(self, run: PtttRun) -> None:
         self._run = run

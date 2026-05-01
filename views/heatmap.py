@@ -28,7 +28,7 @@ from PySide6.QtWidgets import (
 from chart_axes import nice_ticks
 from colors import alphafold_color_array, delta_color_array
 from controller import SelectionController
-from data import PtttRun
+from data import PtttRun, ss_segments
 
 _LEFT_MARGIN = 52.0
 _TOP_MARGIN = 10.0
@@ -75,6 +75,9 @@ class HeatmapScene(QGraphicsScene):
         self._res_line: QGraphicsLineItem | None = None
         self._axis_items: list[QGraphicsItem] = []
         self._legend_items: list[QGraphicsItem] = []
+        self._ss_filter: set[int] = {0, 1, 2}
+        self._ss_filter_step: int = 0
+        self._ss_overlay_items: list[QGraphicsRectItem] = []
         self._build()
 
     def set_run(self, run: PtttRun) -> None:
@@ -89,8 +92,10 @@ class HeatmapScene(QGraphicsScene):
         self._res_line = None
         self._axis_items = []
         self._legend_items = []
+        self._ss_overlay_items = []
         self.clear()
         self._build()
+        self._rebuild_ss_overlay()
 
     def set_color_mode(self, mode: Literal["absolute", "delta"]) -> None:
         if mode == self._mode:
@@ -106,6 +111,45 @@ class HeatmapScene(QGraphicsScene):
         self._res_hi = hi
         self._refill_image()
         self._rebuild_axes()
+        self._rebuild_ss_overlay()
+
+    def set_ss_filter(self, allowed: set[int]) -> None:
+        self._ss_filter = set(allowed)
+        self._rebuild_ss_overlay()
+
+    def set_ss_filter_step(self, step: int) -> None:
+        if step == self._ss_filter_step or step < 0 or step >= self._run.n_steps:
+            return
+        self._ss_filter_step = step
+        self._rebuild_ss_overlay()
+
+    def _rebuild_ss_overlay(self) -> None:
+        for item in self._ss_overlay_items:
+            self.removeItem(item)
+        self._ss_overlay_items = []
+        if self._ss_filter == {0, 1, 2}:
+            return
+        ss_row = self._run.ss_matrix[self._ss_filter_step]
+        sub = ss_row[self._res_lo : self._res_hi + 1]
+        overlay_brush = QColor(255, 255, 255, 180)
+        overlay_pen = QPen(Qt.NoPen)
+        for lo_local, hi_local, label in ss_segments(sub):
+            if int(label) in self._ss_filter:
+                continue
+            res_lo_abs = lo_local + self._res_lo
+            res_hi_abs = hi_local + self._res_lo
+            x_left = self._res_to_scene_x(float(res_lo_abs) - 0.5)
+            x_right = self._res_to_scene_x(float(res_hi_abs) + 0.5)
+            x_left = max(_PLOT_RECT.left(), x_left)
+            x_right = min(_PLOT_RECT.right(), x_right)
+            if x_right <= x_left:
+                continue
+            rect = QGraphicsRectItem(x_left, _PLOT_RECT.top(), x_right - x_left, _PLOT_RECT.height())
+            rect.setBrush(overlay_brush)
+            rect.setPen(overlay_pen)
+            rect.setZValue(18)  # above pixmap (z<10) and step/res lines (z=20)? - put below 20
+            self.addItem(rect)
+            self._ss_overlay_items.append(rect)
 
     def move_step_line(self, step: int) -> None:
         if self._step_line is None:
@@ -336,7 +380,9 @@ class HeatmapView(QGraphicsView):
         self.setMouseTracking(True)
 
         ctrl.currentStepChanged.connect(self._scene.move_step_line)
+        ctrl.currentStepChanged.connect(self._scene.set_ss_filter_step)
         ctrl.residueSelectedChanged.connect(self._scene.move_res_line)
+        ctrl.ssClassFilterChanged.connect(self._scene.set_ss_filter)
 
     def set_run(self, run: PtttRun) -> None:
         self._run = run

@@ -9,6 +9,7 @@ class SelectionController(QObject):
     stepRangeSelected = Signal(int, int)       # (-1, -1) = clear
     residueRangeSelected = Signal(int, int)    # (-1, -1) = clear
     comparisonResiduesChanged = Signal(list)   # list[int]
+    ssClassFilterChanged = Signal(set)         # subset of {0, 1, 2}
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -19,6 +20,7 @@ class SelectionController(QObject):
         self._step_range: tuple[int, int] = (-1, -1)
         self._residue_range: tuple[int, int] = (-1, -1)
         self._comparison_residues: list[int] = []
+        self._ss_class_filter: set[int] = {0, 1, 2}
 
     def setCurrentStep(self, step: int) -> None:
         if step != self._current_step:
@@ -73,6 +75,12 @@ class SelectionController(QObject):
         residues.symmetric_difference_update({residue})
         self.setComparisonResidues(list(residues))
 
+    def setSsClassFilter(self, allowed: set[int]) -> None:
+        normalized = {int(v) for v in allowed if 0 <= int(v) <= 2}
+        if normalized != self._ss_class_filter:
+            self._ss_class_filter = normalized
+            self.ssClassFilterChanged.emit(set(normalized))
+
     @property
     def current_step(self) -> int:
         return self._current_step
@@ -100,3 +108,7 @@ class SelectionController(QObject):
     @property
     def comparison_residues(self) -> list[int]:
         return self._comparison_residues
+
+    @property
+    def ss_class_filter(self) -> set[int]:
+        return set(self._ss_class_filter)
