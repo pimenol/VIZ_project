@@ -1,7 +1,5 @@
 """Dimensionality reduction with disk caching for embeddings_2d arrays."""
 
-from __future__ import annotations
-
 import json
 from dataclasses import dataclass
 from pathlib import Path

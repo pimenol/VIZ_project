@@ -1,7 +1,5 @@
 """PointsItem — a single QGraphicsItem that draws many points in one paint() call."""
 
-from __future__ import annotations
-
 import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QPainter

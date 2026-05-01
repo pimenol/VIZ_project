@@ -1,7 +1,5 @@
 """T1 — multi-panel line chart of global metrics across TTT steps."""
 
-from __future__ import annotations
-
 import math
 
 import numpy as np

@@ -1,7 +1,5 @@
 """T2 — per-residue pLDDT heatmap backed by a single QImage."""
 
-from __future__ import annotations
-
 from typing import Literal
 
 import numpy as np

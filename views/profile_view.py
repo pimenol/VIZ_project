@@ -1,7 +1,5 @@
 """T3 — overlaid per-residue pLDDT profiles + step picker."""
 
-from __future__ import annotations
-
 from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import (
     QColor,

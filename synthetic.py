@@ -1,7 +1,5 @@
 """Generate a synthetic PtttRun for development and demo."""
 
-from __future__ import annotations
-
 import numpy as np
 
 from data import PtttRun

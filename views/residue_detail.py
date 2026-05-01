@@ -1,7 +1,5 @@
 """T6 — per-residue detail dock with header, pLDDT trajectory, embedding trajectory, sequence context."""
 
-from __future__ import annotations
-
 import sys
 from pathlib import Path
 

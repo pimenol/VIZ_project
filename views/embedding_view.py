@@ -1,7 +1,5 @@
 """T4 — 2D scatter view of per-residue embeddings, animated across steps."""
 
-from __future__ import annotations
-
 import sys
 from pathlib import Path
 

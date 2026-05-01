@@ -1,7 +1,5 @@
 """Phase B — secondary-structure annotation strip aligned to a residue X axis."""
 
-from __future__ import annotations
-
 import sys
 from pathlib import Path
 
