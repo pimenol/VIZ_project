@@ -73,6 +73,8 @@ class EmbeddingScene(QGraphicsScene):
         self._color_mode = "plddt"
         self._legend_items: list = []
         self._ss_filter: set[int] = {0, 1, 2}
+        self._res_lo = 0
+        self._res_hi = run.n_residues - 1
 
         self._points = PointsItem(
             np.zeros((0, 2), dtype=np.float32),
@@ -93,6 +95,8 @@ class EmbeddingScene(QGraphicsScene):
     def set_run(self, run: PtttRun) -> None:
         self._run = run
         self._current_step = 0
+        self._res_lo = 0
+        self._res_hi = run.n_residues - 1
         self._compute_reduction()
         self._refresh_step()
 
@@ -110,6 +114,13 @@ class EmbeddingScene(QGraphicsScene):
 
     def set_ss_filter(self, allowed: set[int]) -> None:
         self._ss_filter = set(allowed)
+        self._apply_ss_filter()
+
+    def set_residue_range(self, lo: int, hi: int) -> None:
+        if (lo, hi) == (self._res_lo, self._res_hi):
+            return
+        self._res_lo = lo
+        self._res_hi = hi
         self._apply_ss_filter()
 
     def coords_2d_data(self) -> np.ndarray | None:
@@ -199,12 +210,15 @@ class EmbeddingScene(QGraphicsScene):
     def _apply_ss_filter(self) -> None:
         if self._coords_scene.size == 0:
             return
-        if self._ss_filter == {0, 1, 2}:
-            self._points.set_alpha_mask(None)
-            return
         ss_row = self._run.ss_matrix[self._current_step]
-        mask = np.isin(ss_row, list(self._ss_filter))
-        self._points.set_alpha_mask(mask)
+        ss_mask = np.isin(ss_row, list(self._ss_filter))
+        res_idx = np.arange(self._run.n_residues)
+        range_mask = (res_idx >= self._res_lo) & (res_idx <= self._res_hi)
+        combined = ss_mask & range_mask
+        if combined.all():
+            self._points.set_alpha_mask(None)
+        else:
+            self._points.set_alpha_mask(combined)
 
     def _rebuild_legend(self) -> None:
         for item in self._legend_items:
@@ -264,6 +278,7 @@ class EmbeddingView(QWidget):
         self._gview.setMouseTracking(True)
         self._gview.mouseMoveEvent = self._view_mouse_move
         self._gview.mousePressEvent = self._view_mouse_press
+        self._gview.wheelEvent = self._view_wheel
 
         toolbar = QWidget(self)
         tb = QHBoxLayout(toolbar)
@@ -288,6 +303,9 @@ class EmbeddingView(QWidget):
     def set_run(self, run: PtttRun) -> None:
         self._run = run
         self._scene.set_run(run)
+
+    def set_residue_range(self, lo: int, hi: int) -> None:
+        self._scene.set_residue_range(lo, hi)
 
     def _on_color_mode_changed(self, text: str) -> None:
         mode = "ss" if text == "Secondary structure" else "plddt"
@@ -314,3 +332,7 @@ class EmbeddingView(QWidget):
         if res >= 0:
             self._ctrl.setSelectedResidue(res)
         QGraphicsView.mousePressEvent(self._gview, event)
+
+    def _view_wheel(self, event) -> None:
+        factor = 1 + event.angleDelta().y() * 0.001
+        self._gview.scale(factor, factor)

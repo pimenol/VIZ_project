@@ -95,6 +95,8 @@ def _parse_pdb_ca(pdb_path: Path) -> tuple[np.ndarray, np.ndarray, str]:
                 continue
             if line[12:16].strip() != "CA":
                 continue
+            if line[16] not in (' ', 'A'):
+                continue
             try:
                 plddts.append(float(line[60:66]))
             except ValueError:

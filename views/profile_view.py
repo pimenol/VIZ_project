@@ -352,6 +352,7 @@ class ProfileView(QWidget):
         self._gview.setMouseTracking(True)
         self._gview.mouseMoveEvent = self._view_mouse_move
         self._gview.mousePressEvent = self._view_mouse_press
+        self._gview.wheelEvent = self._view_wheel
 
         self._picker = QListWidget()
         self._picker.setFixedWidth(110)
@@ -441,3 +442,7 @@ class ProfileView(QWidget):
             res = self._pscene.x_to_residue(sp.x())
             self._ctrl.setSelectedResidue(res)
         QGraphicsView.mousePressEvent(self._gview, event)
+
+    def _view_wheel(self, event) -> None:
+        factor = 1 + event.angleDelta().y() * 0.001
+        self._gview.scale(factor, factor)

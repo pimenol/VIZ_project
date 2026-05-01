@@ -283,6 +283,7 @@ class MainWindow(QMainWindow):
         self._heatmap.set_residue_range(lo, hi)
         self._profile.set_residue_range(lo, hi)
         self._heatmap_ss_track.set_residue_range(lo, hi)
+        self._embedding.set_residue_range(lo, hi)
 
     def _on_save_png(self) -> None:
         path, _ = QFileDialog.getSaveFileName(self, "Save PNG", "view.png", "PNG (*.png)")

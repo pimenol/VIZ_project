@@ -11,13 +11,12 @@ from sklearn.manifold import TSNE
 
 @dataclass(frozen=True)
 class ReductionResult:
-    coords_2d: np.ndarray                                  # [S, N, 2] float32
-    method: str                                            # "pca" | "umap" | "tsne"
-    explained_variance_ratio: tuple[float, float] | None   # only for PCA
+    coords_2d: np.ndarray                                  
+    method: str                                         
+    explained_variance_ratio: tuple[float, float] | None  
 
 
 def reduce_pca(X: np.ndarray, n_components: int = 2) -> tuple[np.ndarray, np.ndarray]:
-    """Centered SVD-based PCA. Returns (Y[M, k], explained_variance_ratio[k])."""
     if X.ndim != 2:
         raise ValueError(f"reduce_pca expects 2D array, got shape {X.shape}")
     M, D = X.shape
@@ -25,9 +24,8 @@ def reduce_pca(X: np.ndarray, n_components: int = 2) -> tuple[np.ndarray, np.nda
         raise ValueError(f"n_components={n_components} exceeds min(M, D)={min(M, D)}")
 
     Xc = X - X.mean(axis=0, keepdims=True)
-    # full_matrices=False gives U: (M, k_full), s: (k_full,), Vt: (k_full, D), k_full=min(M,D).
     U, s, Vt = np.linalg.svd(Xc, full_matrices=False)
-    Y = U[:, :n_components] * s[:n_components]                  # [M, k]
+    Y = U[:, :n_components] * s[:n_components]               
     eigvals = (s ** 2) / max(M - 1, 1)
     total_var = float(eigvals.sum())
     ratio = (eigvals[:n_components] / total_var) if total_var > 0 else np.zeros(n_components, dtype=float)
@@ -61,7 +59,6 @@ def reduce_joint(
     cache_key: str,
     recompute: bool = False,
 ) -> ReductionResult:
-    """Flatten [S, N, D] → reduce → reshape to [S, N, 2]; cache to disk if cache_dir is given."""
     if embeddings.ndim != 3:
         raise ValueError(f"embeddings must be [S, N, D], got shape {embeddings.shape}")
     S, N, D = embeddings.shape
@@ -84,7 +81,6 @@ def reduce_joint(
             explained_variance_ratio=(float(var_ratio[0]), float(var_ratio[1])),
         )
     else:
-        # PCA pre-reduce to 50 dims for UMAP/t-SNE on high-D inputs.
         if D > 50:
             flat, _ = reduce_pca(flat, n_components=50)
         Y = reduce_umap(flat) if method == "umap" else reduce_tsne(flat)
