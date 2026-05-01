@@ -1,4 +1,4 @@
-"""Axis drawing helpers for QGraphicsScene-based charts."""
+"""Axis drawing helpers"""
 
 import math
 from dataclasses import dataclass, field
@@ -10,7 +10,6 @@ from PySide6.QtWidgets import QGraphicsLineItem, QGraphicsScene, QGraphicsTextIt
 
 
 def nice_ticks(lo: float, hi: float, target: int = 6) -> list[float]:
-    """Return nicely spaced tick positions covering [lo, hi]."""
     if hi <= lo or target < 2:
         return [lo, hi]
     span = hi - lo

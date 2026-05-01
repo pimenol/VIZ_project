@@ -3,10 +3,10 @@ from PySide6.QtCore import QObject, Signal
 
 class SelectionController(QObject):
     currentStepChanged = Signal(int)
-    residueHoveredChanged = Signal(int)        # -1 = none
-    residueSelectedChanged = Signal(int)       # -1 = none
-    comparisonStepsChanged = Signal(list)      # list[int]
-    ssClassFilterChanged = Signal(set)         # subset of {0, 1, 2}
+    residueHoveredChanged = Signal(int)        
+    residueSelectedChanged = Signal(int)       
+    comparisonStepsChanged = Signal(list)     
+    ssClassFilterChanged = Signal(set)         
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)

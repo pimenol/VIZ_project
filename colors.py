@@ -1,16 +1,16 @@
 import numpy as np
 from PySide6.QtGui import QColor
 
-_AF_BLUE = (0, 83, 214)      # pLDDT >= 90
-_AF_CYAN = (101, 203, 243)   # pLDDT 70-89
-_AF_YELLOW = (255, 219, 19)  # pLDDT 50-69
-_AF_ORANGE = (255, 125, 69)  # pLDDT < 50
-_AF_GRAY = (128, 128, 128)   # NaN
+_AF_BLUE = (0, 83, 214) # pLDDT >= 90
+_AF_CYAN = (101, 203, 243)# pLDDT 70-89
+_AF_YELLOW = (255, 219, 19)# pLDDT 50-69
+_AF_ORANGE = (255, 125, 69)# pLDDT < 50
+_AF_GRAY = (128, 128, 128) # NaN
 
 SS_COLORS: dict[int, QColor] = {
-    0: QColor(230, 70, 90),    # H — red/magenta
-    1: QColor(240, 200, 50),   # E — gold/yellow
-    2: QColor(190, 190, 190),  # C — light gray
+    0: QColor(230, 70, 90), 
+    1: QColor(240, 200, 50),   
+    2: QColor(190, 190, 190), 
 }
 SS_LETTERS: dict[int, str] = {0: "H", 1: "E", 2: "C"}
 SS_NAMES: dict[int, str] = {0: "Helix", 1: "Sheet", 2: "Coil"}
@@ -33,17 +33,15 @@ _SS_PACKED = np.array(
 
 
 def ss_color_array(ss_row: np.ndarray) -> np.ndarray:
-    """Map [N] uint8 SS labels (0=H, 1=E, 2=C) to packed ARGB32 uint32."""
     idx = np.clip(np.asarray(ss_row, dtype=np.int64), 0, 2)
     return _SS_PACKED[idx]
 
-_DIV_NEG = np.array([220, 50, 47], dtype=np.float32)    # red (negative delta)
-_DIV_MID = np.array([255, 255, 255], dtype=np.float32)  # white (no change)
-_DIV_POS = np.array([38, 139, 210], dtype=np.float32)   # blue (positive delta)
+_DIV_NEG = np.array([220, 50, 47], dtype=np.float32) # red (negative delta)
+_DIV_MID = np.array([255, 255, 255], dtype=np.float32) # white (no change)
+_DIV_POS = np.array([38, 139, 210], dtype=np.float32) # blue (positive delta)
 
 
 def _pack_rgb(r: np.ndarray, g: np.ndarray, b: np.ndarray) -> np.ndarray:
-    """Pack float R/G/B arrays (0-255) into uint32 0xFF_RR_GG_BB (ARGB32)."""
     r8 = np.clip(r, 0, 255).astype(np.uint32)
     g8 = np.clip(g, 0, 255).astype(np.uint32)
     b8 = np.clip(b, 0, 255).astype(np.uint32)
@@ -51,7 +49,6 @@ def _pack_rgb(r: np.ndarray, g: np.ndarray, b: np.ndarray) -> np.ndarray:
 
 
 def alphafold_color_array(plddt: np.ndarray) -> np.ndarray:
-    """Map pLDDT values → packed ARGB32 uint32 (same shape as input)."""
     flat = np.asarray(plddt, dtype=np.float32).ravel()
     nan_mask = np.isnan(flat)
 
@@ -79,7 +76,6 @@ def alphafold_color_array(plddt: np.ndarray) -> np.ndarray:
 
 
 def delta_color_array(delta: np.ndarray, vmax: float = 30.0) -> np.ndarray:
-    """Map pLDDT delta values → packed ARGB32 uint32 (symmetric diverging red-white-blue)."""
     flat = np.asarray(delta, dtype=np.float32).ravel()
     nan_mask = np.isnan(flat)
 
@@ -91,7 +87,6 @@ def delta_color_array(delta: np.ndarray, vmax: float = 30.0) -> np.ndarray:
     g = np.empty_like(flat)
     b = np.empty_like(flat)
 
-    # Lerp red → white on the negative side, white → blue on the positive side.
     frac_neg = 1.0 + t[neg]
     r[neg] = _DIV_NEG[0] + frac_neg * (_DIV_MID[0] - _DIV_NEG[0])
     g[neg] = _DIV_NEG[1] + frac_neg * (_DIV_MID[1] - _DIV_NEG[1])

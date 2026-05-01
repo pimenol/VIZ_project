@@ -1,5 +1,3 @@
-"""ProteinTTT Visualization — main entry point."""
-
 import argparse
 import sys
 from pathlib import Path
@@ -143,7 +141,6 @@ class MainWindow(QMainWindow):
         self._profile = ProfileView(run, self._ctrl, self)
         self._embedding = EmbeddingView(run, self._ctrl, self)
 
-        # SS strip above the heatmap shares its plot geometry (52 / 600).
         self._heatmap_ss_track = SecondaryStructureTrack(
             run, self._ctrl, plot_left=52.0, plot_width=600.0, parent=self,
         )
@@ -192,16 +189,16 @@ class MainWindow(QMainWindow):
         def _sc(key: str, fn) -> None:
             QShortcut(QKeySequence(key), self).activated.connect(fn)
 
-        _sc("Left",        lambda: self._step_by(-1))
-        _sc("Right",       lambda: self._step_by(+1))
-        _sc("Shift+Left",  lambda: self._step_by(-10))
+        _sc("Left", lambda: self._step_by(-1))
+        _sc("Right", lambda: self._step_by(+1))
+        _sc("Shift+Left", lambda: self._step_by(-10))
         _sc("Shift+Right", lambda: self._step_by(+10))
-        _sc("Home",        lambda: self._ctrl.setCurrentStep(0))
-        _sc("End",         lambda: self._ctrl.setCurrentStep(self._run.best_step))
-        _sc("+",           self._zoom_in)
-        _sc("-",           self._zoom_out)
-        _sc("R",           self._reset_zoom)
-        _sc("F",           self._fit_view)
+        _sc("Home", lambda: self._ctrl.setCurrentStep(0))
+        _sc("End",lambda: self._ctrl.setCurrentStep(self._run.best_step))
+        _sc("+", self._zoom_in)
+        _sc("-", self._zoom_out)
+        _sc("R", self._reset_zoom)
+        _sc("F", self._fit_view)
 
     def _wire_controller(self) -> None:
         c = self._ctrl
@@ -211,7 +208,6 @@ class MainWindow(QMainWindow):
         c.comparisonStepsChanged.connect(self._update_status)
 
     def _on_current_step_changed(self, step: int) -> None:
-        # Block signals on slider/spin to prevent the recursive emit loop they'd otherwise form.
         self._step_slider.blockSignals(True)
         self._step_spin.blockSignals(True)
         self._step_slider.setValue(step)
@@ -289,7 +285,6 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getSaveFileName(self, "Save PNG", "view.png", "PNG (*.png)")
         if not path:
             return
-        # Export the heatmap scene (most information-dense view)
         scene = self._heatmap.scene()
         sr = scene.sceneRect()
         img = QImage(int(sr.width()), int(sr.height()), QImage.Format_ARGB32)

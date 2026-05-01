@@ -1,5 +1,3 @@
-"""Load a ProteinTTT run from disk into numpy arrays."""
-
 import csv
 import logging
 import re

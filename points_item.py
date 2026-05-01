@@ -1,11 +1,9 @@
-"""PointsItem — a single QGraphicsItem that draws many points in one paint() call."""
-
 import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import QGraphicsItem
 
-_FADED_ALPHA = 0x40   # ~25% opacity for out-of-range points
+_FADED_ALPHA = 0x40   
 
 
 class PointsItem(QGraphicsItem):
