@@ -1,4 +1,4 @@
-"""T2 — per-residue pLDDT heatmap backed by a single QImage."""
+"""T2 - per-residue pLDDT heatmap backed by a single QImage."""
 
 from typing import Literal
 
@@ -38,9 +38,9 @@ _LEGEND_W = 18.0
 _LEGEND_H = 120.0
 _LEGEND_GAP = 8.0
 
-_DELTA_NEG = (220, 50, 47)   # red — large negative delta
-_DELTA_MID = (255, 255, 255) # white — zero
-_DELTA_POS = (38, 139, 210)  # blue — large positive delta
+# _DELTA_NEG = (220, 50, 47)  
+# _DELTA_MID = (255, 255, 255)
+# _DELTA_POS = (38, 139, 210) 
 
 _STEP_OVL_COLOR = QColor(255, 80, 0)
 _RES_OVL_COLOR = QColor(0, 100, 220)
@@ -51,7 +51,6 @@ def _delta_vmax(plddt_delta: np.ndarray) -> float:
 
 
 def _make_gradient_pixmap(height: int, vmax: float) -> QPixmap:
-    """1-px-wide vertical gradient using delta_color_array (top=+vmax, bottom=−vmax)."""
     deltas = np.linspace(vmax, -vmax, height, dtype=np.float32).reshape(-1, 1)
     pixels = np.ascontiguousarray(delta_color_array(deltas, vmax), dtype=np.uint32)
     img = QImage(pixels, 1, height, 4, QImage.Format_ARGB32)
@@ -145,7 +144,7 @@ class HeatmapScene(QGraphicsScene):
             rect = QGraphicsRectItem(x_left, _PLOT_RECT.top(), x_right - x_left, _PLOT_RECT.height())
             rect.setBrush(overlay_brush)
             rect.setPen(overlay_pen)
-            rect.setZValue(18)  # above pixmap (z<10) and step/res lines (z=20)? - put below 20
+            rect.setZValue(18) 
             self.addItem(rect)
             self._ss_overlay_items.append(rect)
 
@@ -211,7 +210,6 @@ class HeatmapScene(QGraphicsScene):
                 run.plddt_delta[:, col_lo:col_hi], self._delta_vmax_cached
             )
 
-        # Keep buffer alive on self so QImage's underlying memory remains valid.
         self._img_buf = np.ascontiguousarray(pixels, dtype=np.uint32)
         n_steps, n_res = self._img_buf.shape
         self._img = QImage(
@@ -236,13 +234,11 @@ class HeatmapScene(QGraphicsScene):
         lbl_color = QColor(50, 50, 50)
 
         def add_new(item: QGraphicsItem) -> None:
-            """For items not yet in the scene."""
             item.setZValue(15)
             self.addItem(item)
             self._axis_items.append(item)
 
         def track(item: QGraphicsItem) -> None:
-            """For items already in the scene (e.g. via addText)."""
             item.setZValue(15)
             self._axis_items.append(item)
 
@@ -387,7 +383,7 @@ class HeatmapView(QGraphicsView):
         self._scene.set_run(run)
 
     def set_color_mode(self, mode: str) -> None:
-        self._scene.set_color_mode(mode)  # type: ignore[arg-type]
+        self._scene.set_color_mode(mode) 
 
     def set_residue_range(self, lo: int, hi: int) -> None:
         self._scene.set_residue_range(lo, hi)

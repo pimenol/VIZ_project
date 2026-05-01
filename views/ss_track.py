@@ -1,4 +1,4 @@
-"""Phase B — secondary-structure annotation strip aligned to a residue X axis."""
+"""Secondary-structure annotation strip aligned to a residue X axis."""
 
 import sys
 from pathlib import Path
@@ -15,7 +15,6 @@ from PySide6.QtWidgets import (
     QToolTip,
 )
 
-# Allow direct `python views/ss_track.py` runs by extending sys.path to project root.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from colors import SS_COLORS, SS_LETTERS, SS_NAMES, ss_color
@@ -25,7 +24,7 @@ from data import PtttRun, ss_segments
 _TRACK_HEIGHT = 30.0
 _PLOT_TOP = 4.0
 _PLOT_BOTTOM_INSET = 4.0
-_LABEL_MIN_PX = 20.0          # only draw "H/E/C" label if segment is at least this wide
+_LABEL_MIN_PX = 20.0          
 _RECT_Z = 5
 _LABEL_Z = 6
 

@@ -1,4 +1,4 @@
-"""T6 — per-residue detail dock with header, pLDDT trajectory, embedding trajectory, sequence context."""
+"""T6, per-residue detail dock with header, pLDDT trajectory, embedding trajectory, sequence context."""
 
 import sys
 from pathlib import Path
@@ -82,7 +82,7 @@ class _PlddtTrajectoryView(QGraphicsView):
         self._residue = residue
         self._rebuild()
 
-    def mousePressEvent(self, event) -> None:  # type: ignore[override]
+    def mousePressEvent(self, event) -> None:  
         sp = self.mapToScene(event.pos())
         if _MINI_PLOT.contains(sp):
             n = self._run.n_steps
@@ -321,7 +321,7 @@ class _EmbeddingTrajectoryView(QGraphicsView):
         coords = self._coords_2d_provider()
         if coords is None or coords.size == 0:
             return
-        traj = coords[:, self._residue, :]                  # (S, 2)
+        traj = coords[:, self._residue, :]                 
         x_lo = float(traj[:, 0].min())
         x_hi = float(traj[:, 0].max())
         y_lo = float(traj[:, 1].min())
@@ -424,7 +424,7 @@ class _SequenceContextView(QGraphicsView):
         self._residue = residue
         self._rebuild()
 
-    def mousePressEvent(self, event) -> None:  # type: ignore[override]
+    def mousePressEvent(self, event) -> None:  
         sp = self.mapToScene(event.pos())
         if 0 <= sp.y() <= _CTX_CELL_H + 2 and self._residue >= 0:
             offset = int(sp.x() // _CTX_CELL_W) - _CTX_RADIUS

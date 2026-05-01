@@ -1,4 +1,4 @@
-"""T4 — 2D scatter view of per-residue embeddings, animated across steps."""
+"""T4 - 2D scatter view of per-residue embeddings, animated across steps."""
 
 import sys
 from pathlib import Path
@@ -28,7 +28,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-# Allow direct `python views/embedding_view.py` runs by extending sys.path to project root.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from chart_axes import draw_axes, nice_ticks

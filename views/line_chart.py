@@ -1,4 +1,4 @@
-"""T1 — multi-panel line chart of global metrics across TTT steps."""
+"""T1, multi-panel line chart of global metrics across TTT steps."""
 
 import math
 
@@ -64,11 +64,6 @@ def _series_for(run: PtttRun, idx: int) -> np.ndarray:
 
 
 def _ss_stratified_plddt_means(run: PtttRun) -> np.ndarray:
-    """Per-step mean pLDDT for residues whose SS label matches each class.
-
-    Returns shape (3, S): row 0 = helix, 1 = sheet, 2 = coil. NaN where no residues match.
-    SS changes across steps, so the mask is recomputed per row of ss_matrix.
-    """
     plddt = run.plddt_matrix.astype(np.float64)
     ss = run.ss_matrix
     out = np.full((3, run.n_steps), np.nan, dtype=np.float64)
@@ -219,8 +214,6 @@ class LineChartScene(QGraphicsScene):
 
         y_lo = float(np.nanmin(series))
         y_hi = float(np.nanmax(series))
-        # On the pLDDT panel, expand range to cover SS-stratified means even when hidden,
-        # so the y axis stays stable when the user toggles them on.
         ss_strat: np.ndarray | None = None
         if idx == 0:
             ss_strat = _ss_stratified_plddt_means(run)
@@ -321,7 +314,7 @@ class LineChartScene(QGraphicsScene):
             pen.setCosmetic(True)
             item = QGraphicsPathItem(path)
             item.setPen(pen)
-            item.setZValue(7)  # below the main pLDDT curve (z=8)
+            item.setZValue(7) 
             item.setVisible(self._ss_visible)
             self.addItem(item)
             self._ss_path_items.append(item)
@@ -331,7 +324,6 @@ class LineChartScene(QGraphicsScene):
         font_pt = 7
         x = rect.right() - 4.0
         y = rect.top() + 4.0
-        # Build right-to-left so we can right-align without knowing widths up front.
         for label in (2, 1, 0):
             name = SS_NAMES[label]
             txt = self.addText(name)
@@ -452,4 +444,4 @@ class LineChartView(QGraphicsView):
 
     def wheelEvent(self, event) -> None:
         factor = 1 + event.angleDelta().y() * 0.001
-        self.scale(factor, 1.0)  # X-only zoom
+        self.scale(factor, 1.0) 

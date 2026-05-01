@@ -1,4 +1,4 @@
-"""T3 — overlaid per-residue pLDDT profiles + step picker."""
+"""T3, overlaid per-residue pLDDT profiles + step picker."""
 
 from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import (
@@ -82,7 +82,6 @@ class ProfileScene(QGraphicsScene):
         self._res_lo = 0
         self._res_hi = run.n_residues - 1
         self._comparison = []
-        # Reset item refs BEFORE clear() — _rebuild_axes mustn't removeItem() already-deleted C++ objects.
         self._step_paths = {}
         self._res_line = None
         self._x_axis_items = []
@@ -326,13 +325,12 @@ class ProfileScene(QGraphicsScene):
 
 
 class ProfileView(QWidget):
-    """Compound widget: QGraphicsView (left) + step picker QListWidget (right)."""
 
     def __init__(self, run: PtttRun, ctrl: SelectionController, parent=None) -> None:
         super().__init__(parent)
         self._ctrl = ctrl
         self._run = run
-        self._updating_list = False  # guard against recursive updates
+        self._updating_list = False  
 
         self._pscene = ProfileScene(run)
 
