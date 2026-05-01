@@ -27,16 +27,16 @@ _AA3_TO_AA1 = {
 
 @dataclass(frozen=True)
 class PtttRun:
-    steps: np.ndarray            # (S,) int
-    loss: np.ndarray             # (S,) float, NaN for missing
-    plddt_mean: np.ndarray       # (S,) float
-    lddt: np.ndarray             # (S,) float
-    plddt_matrix: np.ndarray     # (S, N) float32
-    plddt_delta: np.ndarray      # (S, N) float32, plddt_matrix - plddt_matrix[0]
-    embeddings_hd: np.ndarray    # (S, N, D) float32
-    embedding_kind: str          # "esm" | "ca"
-    aa_sequence: str             # length N, single-letter codes ("X" if unknown)
-    ss_matrix: np.ndarray        # (S, N) uint8, 0=H helix, 1=E sheet, 2=C coil
+    steps: np.ndarray            
+    loss: np.ndarray             
+    plddt_mean: np.ndarray       
+    lddt: np.ndarray            
+    plddt_matrix: np.ndarray    
+    plddt_delta: np.ndarray      
+    embeddings_hd: np.ndarray    
+    embedding_kind: str          
+    aa_sequence: str             
+    ss_matrix: np.ndarray        
     n_steps: int
     n_residues: int
     best_step: int
@@ -44,7 +44,6 @@ class PtttRun:
 
 
 def ss_segments(ss_row: np.ndarray) -> list[tuple[int, int, int]]:
-    """Run-length encode an SS row → list of (start, end_inclusive, label)."""
     n = ss_row.size
     if n == 0:
         return []
@@ -87,7 +86,6 @@ def _parse_tsv(tsv_path: Path) -> dict[str, np.ndarray]:
 
 
 def _parse_pdb_ca(pdb_path: Path) -> tuple[np.ndarray, np.ndarray, str]:
-    """Per-residue pLDDT (B-factor, cols 60:66), xyz (cols 30:54), and AA letter (cols 17:20)."""
     plddts: list[float] = []
     coords: list[tuple[float, float, float]] = []
     aa: list[str] = []
@@ -120,7 +118,6 @@ def _load_embeddings_esm(
     steps: np.ndarray,
     n_residues: int,
 ) -> np.ndarray:
-    """Stack step_<i>.npy files into [S, N, D] float32. Errors if any file is missing."""
     if not embeddings_dir.is_dir():
         raise FileNotFoundError(f"Embeddings directory not found: {embeddings_dir}")
     arrays: list[np.ndarray] = []
@@ -144,7 +141,6 @@ def _compute_ss_matrix(
     steps: np.ndarray,
     n_residues: int,
 ) -> np.ndarray:
-    """For each step, run SS classification on its PDB and stack into [S, N] uint8."""
     rows: list[np.ndarray] = []
     for s in steps:
         s_int = int(s)
@@ -167,7 +163,6 @@ def _load_ss_matrix(
     cache_path: Path | None,
     recompute: bool,
 ) -> np.ndarray:
-    """Load ss_matrix from cache if shape matches, else compute and cache."""
     expected_shape = (steps.size, n_residues)
     if cache_path is not None and cache_path.exists() and not recompute:
         try:
@@ -309,7 +304,6 @@ def _resolve_embeddings(
     n_residues: int,
     xyz_rows: list[np.ndarray],
 ) -> tuple[np.ndarray, str]:
-    """Return (embeddings_hd, kind). ESM auto-falls-back to CA if files missing."""
     if embedding_mode == "ca":
         return np.stack(xyz_rows, axis=0), "ca"
 
