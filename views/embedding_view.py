@@ -1,0 +1,261 @@
+"""T4 — 2D scatter view of per-residue embeddings, animated across steps."""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import numpy as np
+from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtGui import (
+    QColor,
+    QPainter,
+    QSurfaceFormat,
+)
+from PySide6.QtOpenGLWidgets import QOpenGLWidget
+from PySide6.QtWidgets import (
+    QGraphicsScene,
+    QGraphicsTextItem,
+    QGraphicsView,
+    QToolTip,
+    QVBoxLayout,
+    QWidget,
+)
+
+# Allow `python views/embedding_view.py`-style imports during dev — main entry
+# is project-root, so views/ peers must reach back via the parent dir.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from chart_axes import draw_axes, nice_ticks
+from colors import alphafold_color_array
+from controller import SelectionController
+from data import PtttRun
+from points_item import PointsItem
+from reduction import ReductionResult, reduce_joint
+
+_LEFT = 52.0
+_TOP = 28.0
+_RIGHT_MARGIN = 16.0
+_BOT_MARGIN = 28.0
+_PLOT_W = 520.0
+_PLOT_H = 380.0
+_TOTAL_W = _LEFT + _PLOT_W + _RIGHT_MARGIN
+_TOTAL_H = _TOP + _PLOT_H + _BOT_MARGIN
+_PLOT_RECT = QRectF(_LEFT, _TOP, _PLOT_W, _PLOT_H)
+
+_HOVER_PIX_RADIUS = 8.0
+_POINT_RADIUS = 4.0
+
+
+class EmbeddingScene(QGraphicsScene):
+    """Owns the PointsItem, axes, and labels for the embedding view."""
+
+    def __init__(self, run: PtttRun) -> None:
+        super().__init__()
+        self.setSceneRect(0, 0, _TOTAL_W, _TOTAL_H)
+        self.setBackgroundBrush(QColor(252, 252, 252))
+
+        self._run = run
+        self._reduction: ReductionResult | None = None
+        self._coords_scene: np.ndarray = np.empty((0, 0, 2), dtype=np.float32)
+        self._x_lo = self._x_hi = 0.0
+        self._y_lo = self._y_hi = 0.0
+        self._method = "pca"
+        self._current_step = 0
+
+        self._points = PointsItem(
+            np.zeros((0, 2), dtype=np.float32),
+            np.zeros((0,), dtype=np.uint32),
+            radius=_POINT_RADIUS,
+        )
+        self._points.setZValue(5)
+        self.addItem(self._points)
+
+        self._axes = None
+        self._title = self.addText("")
+        self._title.setDefaultTextColor(QColor(60, 60, 60))
+        self._var_label = self.addText("")
+        self._var_label.setDefaultTextColor(QColor(120, 120, 120))
+
+        self.set_run(run)
+
+    def set_run(self, run: PtttRun) -> None:
+        self._run = run
+        self._current_step = 0
+        self._compute_reduction()
+        self._refresh_step()
+
+    def set_method(self, method: str) -> None:
+        if method == self._method:
+            return
+        self._method = method
+        self._compute_reduction()
+        self._refresh_step()
+
+    def set_current_step(self, step: int) -> None:
+        if 0 <= step < self._run.n_steps:
+            self._current_step = step
+            self._refresh_step()
+
+    def points_item(self) -> PointsItem:
+        return self._points
+
+    def hover_radius_scene(self) -> float:
+        return _HOVER_PIX_RADIUS
+
+    def coords_2d_data(self) -> np.ndarray | None:
+        """Reduced [S, N, 2] coordinates in *data* space (PCA / UMAP / t-SNE units)."""
+        return self._reduction.coords_2d if self._reduction is not None else None
+
+    def reduction_method(self) -> str:
+        return self._method
+
+    def _compute_reduction(self) -> None:
+        # Cache directory: alongside the embeddings (esm) or PDBs (ca). Mode selects subdir.
+        cache_dir: Path | None = None
+        cache_key = f"{self._run.embedding_kind}_{self._run.n_steps}_{self._run.n_residues}_{self._run.embeddings_hd.shape[2]}"
+        self._reduction = reduce_joint(
+            self._run.embeddings_hd,
+            method=self._method,
+            cache_dir=cache_dir,
+            cache_key=cache_key,
+        )
+        coords_2d = self._reduction.coords_2d
+        # Compute global ranges (over all steps) so axes are stable as the slider moves.
+        self._x_lo = float(coords_2d[..., 0].min())
+        self._x_hi = float(coords_2d[..., 0].max())
+        self._y_lo = float(coords_2d[..., 1].min())
+        self._y_hi = float(coords_2d[..., 1].max())
+        # Pad ranges by 5% so points aren't on the border.
+        x_pad = (self._x_hi - self._x_lo) * 0.05 or 1.0
+        y_pad = (self._y_hi - self._y_lo) * 0.05 or 1.0
+        self._x_lo -= x_pad
+        self._x_hi += x_pad
+        self._y_lo -= y_pad
+        self._y_hi += y_pad
+
+        self._coords_scene = self._to_scene_coords(coords_2d)
+        self._rebuild_axes()
+        self._update_var_label()
+
+    def _to_scene_coords(self, coords_2d: np.ndarray) -> np.ndarray:
+        """Map [S, N, 2] data coords into scene pixel coords inside _PLOT_RECT.
+
+        Y is inverted (data y_lo at bottom of rect, y_hi at top).
+        """
+        x = coords_2d[..., 0]
+        y = coords_2d[..., 1]
+        sx = _LEFT + (x - self._x_lo) / (self._x_hi - self._x_lo) * _PLOT_W
+        sy = _TOP + _PLOT_H - (y - self._y_lo) / (self._y_hi - self._y_lo) * _PLOT_H
+        return np.stack([sx, sy], axis=-1).astype(np.float32)
+
+    def _rebuild_axes(self) -> None:
+        if self._axes is not None:
+            for items in (
+                self._axes.x_ticks, self._axes.y_ticks,
+                self._axes.x_labels, self._axes.y_labels,
+                self._axes.x_gridlines, self._axes.y_gridlines,
+                self._axes.border,
+            ):
+                for it in items:
+                    self.removeItem(it)
+        x_ticks = nice_ticks(self._x_lo, self._x_hi, target=6)
+        y_ticks = nice_ticks(self._y_lo, self._y_hi, target=5)
+        self._axes = draw_axes(
+            self, _PLOT_RECT, x_ticks, y_ticks,
+            self._x_lo, self._x_hi, self._y_lo, self._y_hi,
+        )
+
+    def _update_var_label(self) -> None:
+        if self._method == "pca" and self._reduction and self._reduction.explained_variance_ratio:
+            a, b = self._reduction.explained_variance_ratio
+            text = f"PC1: {a*100:.1f}%   PC2: {b*100:.1f}%"
+        elif self._method == "umap":
+            text = "UMAP-1 / UMAP-2"
+        elif self._method == "tsne":
+            text = "t-SNE 1 / t-SNE 2"
+        else:
+            text = ""
+        self._var_label.setPlainText(text)
+        self._var_label.setPos(_LEFT + 4, _TOP + _PLOT_H + 6)
+        self._var_label.setZValue(11)
+
+    def _refresh_step(self) -> None:
+        if self._coords_scene.size == 0:
+            return
+        s = self._current_step
+        coords = self._coords_scene[s]                       # (N, 2)
+        plddt = self._run.plddt_matrix[s]
+        colors = alphafold_color_array(plddt)
+        self._points.set_data(coords, colors)
+        self._title.setPlainText(f"Embedding 2D — step {s} ({self._method.upper()})")
+        self._title.setPos(_LEFT, 6)
+        self._title.setZValue(11)
+
+    # Hover/click translation helpers — public for the View to call.
+    def residue_at(self, scene_point: QPointF) -> int:
+        return self._points.index_at(scene_point, _HOVER_PIX_RADIUS)
+
+
+class EmbeddingView(QWidget):
+    """T4 view widget — currently snapshot mode + PCA only. Toolbar lands in step 10."""
+
+    def __init__(self, run: PtttRun, ctrl: SelectionController, parent=None) -> None:
+        super().__init__(parent)
+        self._ctrl = ctrl
+        self._run = run
+
+        self._scene = EmbeddingScene(run)
+
+        fmt = QSurfaceFormat()
+        fmt.setSamples(4)
+        gl = QOpenGLWidget()
+        gl.setFormat(fmt)
+
+        self._gview = QGraphicsView(self._scene)
+        self._gview.setViewport(gl)
+        self._gview.setRenderHints(
+            QPainter.Antialiasing | QPainter.TextAntialiasing | QPainter.SmoothPixmapTransform
+        )
+        self._gview.setBackgroundBrush(QColor(240, 240, 240))
+        self._gview.setDragMode(QGraphicsView.ScrollHandDrag)
+        self._gview.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
+        self._gview.setMouseTracking(True)
+        self._gview.mouseMoveEvent = self._view_mouse_move
+        self._gview.mousePressEvent = self._view_mouse_press
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(self._gview)
+
+        ctrl.currentStepChanged.connect(self._scene.set_current_step)
+
+    def set_run(self, run: PtttRun) -> None:
+        self._run = run
+        self._scene.set_run(run)
+
+    def coords_2d_data(self) -> np.ndarray | None:
+        return self._scene.coords_2d_data()
+
+    def reduction_method(self) -> str:
+        return self._scene.reduction_method()
+
+    def _view_mouse_move(self, event) -> None:
+        sp = self._gview.mapToScene(event.pos())
+        res = self._scene.residue_at(sp)
+        if res >= 0:
+            self._ctrl.setHoveredResidue(res)
+            plddt = float(self._run.plddt_matrix[self._ctrl.current_step, res])
+            QToolTip.showText(event.globalPos(), f"Res {res}\npLDDT {plddt:.1f}")
+        else:
+            self._ctrl.setHoveredResidue(-1)
+            QToolTip.hideText()
+        QGraphicsView.mouseMoveEvent(self._gview, event)
+
+    def _view_mouse_press(self, event) -> None:
+        sp = self._gview.mapToScene(event.pos())
+        res = self._scene.residue_at(sp)
+        if res >= 0:
+            self._ctrl.setSelectedResidue(res)
+        QGraphicsView.mousePressEvent(self._gview, event)

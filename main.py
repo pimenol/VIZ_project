@@ -20,8 +20,6 @@ from PySide6.QtWidgets import (
     QSplitter,
     QStatusBar,
     QToolBar,
-    QVBoxLayout,
-    QWidget,
 )
 
 from controller import SelectionController
@@ -42,6 +40,7 @@ class MainWindow(QMainWindow):
 
         self._build_toolbar()
         self._build_central(run)
+        self._build_detail_dock(run)
         self._build_status_bar()
         self._build_shortcuts()
         self._wire_controller()
@@ -117,24 +116,53 @@ class MainWindow(QMainWindow):
         from views.line_chart import LineChartView
         from views.heatmap import HeatmapView
         from views.profile_view import ProfileView
+        from views.embedding_view import EmbeddingView
+        from views.ss_track import SecondaryStructureTrack
+        from PySide6.QtWidgets import QVBoxLayout, QWidget
 
         self._line_chart = LineChartView(run, self._ctrl, self)
         self._heatmap = HeatmapView(run, self._ctrl, self)
         self._profile = ProfileView(run, self._ctrl, self)
+        self._embedding = EmbeddingView(run, self._ctrl, self)
+
+        # SS strip above the heatmap shares its plot geometry (52 / 600).
+        self._heatmap_ss_track = SecondaryStructureTrack(
+            run, self._ctrl, plot_left=52.0, plot_width=600.0, parent=self,
+        )
+        heatmap_container = QWidget()
+        h_layout = QVBoxLayout(heatmap_container)
+        h_layout.setContentsMargins(0, 0, 0, 0)
+        h_layout.setSpacing(0)
+        h_layout.addWidget(self._heatmap_ss_track)
+        h_layout.addWidget(self._heatmap)
+
+        top_splitter = QSplitter(Qt.Horizontal)
+        top_splitter.addWidget(self._line_chart)
+        top_splitter.addWidget(self._embedding)
+        top_splitter.setStretchFactor(0, 3)
+        top_splitter.setStretchFactor(1, 2)
 
         bottom_splitter = QSplitter(Qt.Horizontal)
-        bottom_splitter.addWidget(self._heatmap)
+        bottom_splitter.addWidget(heatmap_container)
         bottom_splitter.addWidget(self._profile)
         bottom_splitter.setStretchFactor(0, 3)
         bottom_splitter.setStretchFactor(1, 2)
 
-        container = QWidget()
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(4)
-        layout.addWidget(self._line_chart, 2)
-        layout.addWidget(bottom_splitter, 3)
-        self.setCentralWidget(container)
+        root_splitter = QSplitter(Qt.Vertical)
+        root_splitter.addWidget(top_splitter)
+        root_splitter.addWidget(bottom_splitter)
+        root_splitter.setStretchFactor(0, 2)
+        root_splitter.setStretchFactor(1, 3)
+
+        self.setCentralWidget(root_splitter)
+
+    def _build_detail_dock(self, run: PtttRun) -> None:
+        from views.residue_detail import ResidueDetailDock
+        self._detail_dock = ResidueDetailDock(
+            run, self._ctrl, self._embedding.coords_2d_data, self,
+        )
+        self.addDockWidget(Qt.RightDockWidgetArea, self._detail_dock)
+        self._detail_dock.hide()
 
     def _build_status_bar(self) -> None:
         self._status_label = QLabel()
@@ -213,6 +241,9 @@ class MainWindow(QMainWindow):
         self._line_chart.set_run(run)
         self._heatmap.set_run(run)
         self._profile.set_run(run)
+        self._embedding.set_run(run)
+        self._detail_dock.set_run(run)
+        self._heatmap_ss_track.set_run(run)
         default_cmp = sorted({0, run.best_step, run.n_steps - 1})
         self._ctrl.setComparisonSteps(default_cmp)
         self._ctrl.setCurrentStep(0)
@@ -228,6 +259,7 @@ class MainWindow(QMainWindow):
             return
         self._heatmap.set_residue_range(lo, hi)
         self._profile.set_residue_range(lo, hi)
+        self._heatmap_ss_track.set_residue_range(lo, hi)
 
     def _on_save_png(self) -> None:
         path, _ = QFileDialog.getSaveFileName(self, "Save PNG", "view.png", "PNG (*.png)")
@@ -268,6 +300,10 @@ def _parse_args() -> argparse.Namespace:
     grp.add_argument("--demo", action="store_true", help="Load synthetic demo data")
     grp.add_argument("--tsv", type=Path, metavar="FILE", help="Metrics TSV path")
     p.add_argument("--pdbs", type=Path, metavar="DIR", help="PDB folder (required with --tsv)")
+    p.add_argument(
+        "--recompute-ss", action="store_true",
+        help="Force secondary-structure recomputation, ignoring any cached ss_matrix.npy",
+    )
     return p.parse_args()
 
 
@@ -283,7 +319,7 @@ def main() -> None:
     if args.demo:
         run = make_demo_run()
     else:
-        run = load_run(args.tsv, args.pdbs)
+        run = load_run(args.tsv, args.pdbs, recompute_ss=args.recompute_ss)
 
     win = MainWindow(run)
     win.show()

@@ -21,12 +21,14 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QToolTip,
+    QVBoxLayout,
     QWidget,
 )
 
 from chart_axes import nice_ticks
 from controller import SelectionController
 from data import PtttRun
+from views.ss_track import SecondaryStructureTrack
 
 # Layout
 _LEFT = 52.0
@@ -319,10 +321,24 @@ class ProfileView(QWidget):
         self._picker.itemChanged.connect(self._on_list_item_changed)
         self._populate_picker(run)
 
+        self._ss_track = SecondaryStructureTrack(
+            run, ctrl,
+            plot_left=_PLOT_RECT.left(),
+            plot_width=_PLOT_RECT.width(),
+            parent=self,
+        )
+
+        plot_col = QWidget(self)
+        v = QVBoxLayout(plot_col)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(0)
+        v.addWidget(self._ss_track)
+        v.addWidget(self._gview)
+
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(2)
-        layout.addWidget(self._gview, 1)
+        layout.addWidget(plot_col, 1)
         layout.addWidget(self._picker)
 
         ctrl.comparisonStepsChanged.connect(self._on_comparison_changed)
@@ -332,9 +348,11 @@ class ProfileView(QWidget):
         self._run = run
         self._pscene.set_run(run)
         self._populate_picker(run)
+        self._ss_track.set_run(run)
 
     def set_residue_range(self, lo: int, hi: int) -> None:
         self._pscene.set_residue_range(lo, hi)
+        self._ss_track.set_residue_range(lo, hi)
 
     def _populate_picker(self, run: PtttRun) -> None:
         self._picker.blockSignals(True)

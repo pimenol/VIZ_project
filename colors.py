@@ -1,17 +1,24 @@
-"""Vectorized color palettes for pLDDT visualization."""
-
-from __future__ import annotations
-
 import numpy as np
+from PySide6.QtGui import QColor
 
-# AlphaFold confidence band colors as (R, G, B) tuples
 _AF_BLUE = (0, 83, 214)      # pLDDT >= 90
 _AF_CYAN = (101, 203, 243)   # pLDDT 70-89
 _AF_YELLOW = (255, 219, 19)  # pLDDT 50-69
 _AF_ORANGE = (255, 125, 69)  # pLDDT < 50
 _AF_GRAY = (128, 128, 128)   # NaN
 
-# Delta diverging palette endpoints: red <-- white --> blue
+SS_COLORS: dict[int, QColor] = {
+    0: QColor(230, 70, 90),    # H — red/magenta
+    1: QColor(240, 200, 50),   # E — gold/yellow
+    2: QColor(190, 190, 190),  # C — light gray
+}
+SS_LETTERS: dict[int, str] = {0: "H", 1: "E", 2: "C"}
+SS_NAMES: dict[int, str] = {0: "Helix", 1: "Sheet", 2: "Coil"}
+
+
+def ss_color(label: int) -> QColor:
+    return SS_COLORS.get(int(label), SS_COLORS[2])
+
 _DIV_NEG = np.array([220, 50, 47], dtype=np.float32)    # red (negative delta)
 _DIV_MID = np.array([255, 255, 255], dtype=np.float32)  # white (no change)
 _DIV_POS = np.array([38, 139, 210], dtype=np.float32)   # blue (positive delta)
