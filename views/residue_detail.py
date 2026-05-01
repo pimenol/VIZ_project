@@ -28,7 +28,6 @@ from colors import SS_LETTERS, alphafold_color_array, ss_color
 from controller import SelectionController
 from data import PtttRun
 
-# Plot dims for the two mini-charts (pLDDT trajectory, embedding trajectory).
 _MINI_W = 320.0
 _MINI_H = 110.0
 _MINI_LEFT = 38.0
@@ -39,7 +38,6 @@ _MINI_PLOT_W = _MINI_W - _MINI_LEFT - _MINI_RIGHT
 _MINI_PLOT_H = _MINI_H - _MINI_TOP - _MINI_BOT
 _MINI_PLOT = QRectF(_MINI_LEFT, _MINI_TOP, _MINI_PLOT_W, _MINI_PLOT_H)
 
-# Sequence context strip dims (11 cells horizontally).
 _CTX_RADIUS = 5
 _CTX_CELLS = 2 * _CTX_RADIUS + 1
 _CTX_CELL_W = 26.0
@@ -51,15 +49,12 @@ _REF_LEVELS = (50.0, 70.0, 90.0)
 _INDICATOR_COLOR = QColor(255, 80, 0)
 _TRAJECTORY_COLOR = QColor(60, 80, 200)
 
-# SS evolution strip dims — uses _MINI_LEFT/_MINI_PLOT_W for x-alignment with other minis.
 _SS_EVO_H = 54.0
 _SS_STRIP_TOP = 14.0
 _SS_STRIP_H = 22.0
 
 
 class _PlddtTrajectoryView(QGraphicsView):
-    """pLDDT vs step for one residue."""
-
     def __init__(self, run: PtttRun, ctrl: SelectionController, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._run = run
@@ -118,7 +113,6 @@ class _PlddtTrajectoryView(QGraphicsView):
             font_size=7,
         )
 
-        # Reference dashed lines at 50/70/90.
         ref_pen = QPen(QColor(180, 180, 180), 0.8, Qt.DashLine)
         ref_pen.setCosmetic(True)
         for level in _REF_LEVELS:
@@ -128,7 +122,6 @@ class _PlddtTrajectoryView(QGraphicsView):
             ln.setZValue(8)
             self._scene.addItem(ln)
 
-        # Trajectory polyline.
         path = QPainterPath()
         started = False
         for s in range(n):
@@ -150,7 +143,6 @@ class _PlddtTrajectoryView(QGraphicsView):
         item.setZValue(10)
         self._scene.addItem(item)
 
-        # Current-step indicator.
         ind_pen = QPen(_INDICATOR_COLOR, 1.2)
         ind_pen.setCosmetic(True)
         self._indicator = QGraphicsLineItem(0, _MINI_TOP, 0, _MINI_TOP + _MINI_PLOT_H)
@@ -177,8 +169,6 @@ class _PlddtTrajectoryView(QGraphicsView):
 
 
 class _SsEvolutionView(QGraphicsView):
-    """Per-step SS labels for one residue, plus a step indicator and a 'N distinct' badge."""
-
     def __init__(self, run: PtttRun, ctrl: SelectionController, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._run = run
@@ -225,7 +215,6 @@ class _SsEvolutionView(QGraphicsView):
         ss_col = self._run.ss_matrix[:, self._residue]
         cell_w = _MINI_PLOT_W / max(n, 1)
 
-        # Step cells.
         cell_pen = QPen(QColor(120, 120, 120), 0.4)
         cell_pen.setCosmetic(True)
         font_letter = QFont()
@@ -248,7 +237,6 @@ class _SsEvolutionView(QGraphicsView):
                 ltr.setZValue(6)
                 self._scene.addItem(ltr)
 
-        # Step axis ticks below the strip.
         ax_pen = QPen(QColor(120, 120, 120), 0.6)
         ax_pen.setCosmetic(True)
         font_tick = QFont()
@@ -267,7 +255,6 @@ class _SsEvolutionView(QGraphicsView):
             lbl.setZValue(4)
             self._scene.addItem(lbl)
 
-        # "N distinct SS labels" badge in upper-right; bold/red when unstable.
         n_distinct = len({int(v) for v in ss_col.tolist()})
         badge = QGraphicsSimpleTextItem(f"{n_distinct} distinct SS labels")
         bf = QFont()
@@ -280,7 +267,6 @@ class _SsEvolutionView(QGraphicsView):
         badge.setZValue(7)
         self._scene.addItem(badge)
 
-        # Current-step indicator on top of the strip.
         ind_pen = QPen(_INDICATOR_COLOR, 1.4)
         ind_pen.setCosmetic(True)
         self._indicator = QGraphicsLineItem(0, _SS_STRIP_TOP - 1, 0, _SS_STRIP_TOP + _SS_STRIP_H + 1)
@@ -301,8 +287,6 @@ class _SsEvolutionView(QGraphicsView):
 
 
 class _EmbeddingTrajectoryView(QGraphicsView):
-    """Polyline through embeddings_2d[:, residue, :] across all steps."""
-
     def __init__(
         self,
         run: PtttRun,
@@ -361,7 +345,6 @@ class _EmbeddingTrajectoryView(QGraphicsView):
             sy = _MINI_TOP + _MINI_PLOT_H - (p[1] - y_lo) / (y_hi - y_lo) * _MINI_PLOT_H
             return sx, sy
 
-        # Polyline.
         path = QPainterPath()
         sx0, sy0 = to_scene(traj[0])
         path.moveTo(sx0, sy0)
@@ -375,11 +358,9 @@ class _EmbeddingTrajectoryView(QGraphicsView):
         line_item.setZValue(10)
         self._scene.addItem(line_item)
 
-        # Arrowhead at last segment.
         if len(traj) >= 2:
             self._scene.addItem(self._make_arrowhead(to_scene(traj[-2]), to_scene(traj[-1])))
 
-        # Step labels at 0, S//2, S-1.
         s_max = len(traj) - 1
         for s in {0, s_max // 2, s_max}:
             sx, sy = to_scene(traj[s])
@@ -405,7 +386,6 @@ class _EmbeddingTrajectoryView(QGraphicsView):
         length = (dx * dx + dy * dy) ** 0.5 or 1.0
         ux, uy = dx / length, dy / length
         size = 6.0
-        # Two flank points at ±60° behind tip.
         px, py = -uy, ux
         bx = x1 - ux * size
         by = y1 - uy * size
@@ -420,8 +400,6 @@ class _EmbeddingTrajectoryView(QGraphicsView):
 
 
 class _SequenceContextView(QGraphicsView):
-    """11-cell strip showing residue [i-5..i+5] colored by current step's pLDDT."""
-
     def __init__(self, run: PtttRun, ctrl: SelectionController, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._run = run
@@ -487,7 +465,6 @@ class _SequenceContextView(QGraphicsView):
             txt.setBrush(QColor(20, 20, 20))
             txt.setZValue(6)
             self._scene.addItem(txt)
-            # Index label below.
             idx = QGraphicsSimpleTextItem(str(j))
             f2 = QFont()
             f2.setPointSize(7)
@@ -502,8 +479,6 @@ class _SequenceContextView(QGraphicsView):
 
 
 class ResidueDetailDock(QDockWidget):
-    """Top-level dock that swaps content on residueSelectedChanged."""
-
     def __init__(
         self,
         run: PtttRun,

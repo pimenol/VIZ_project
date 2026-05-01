@@ -61,11 +61,7 @@ def reduce_joint(
     cache_key: str,
     recompute: bool = False,
 ) -> ReductionResult:
-    """Flatten [S, N, D] → reduce → reshape to [S, N, 2].
-
-    For umap/tsne, pre-reduce with PCA to D=50 if D > 50 (joint, on the flattened tensor).
-    Cache to {cache_dir}/cache_2d_<method>__<cache_key>.npy with a .json sidecar.
-    """
+    """Flatten [S, N, D] → reduce → reshape to [S, N, 2]; cache to disk if cache_dir is given."""
     if embeddings.ndim != 3:
         raise ValueError(f"embeddings must be [S, N, D], got shape {embeddings.shape}")
     S, N, D = embeddings.shape

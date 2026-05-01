@@ -83,9 +83,7 @@ def delta_color_array(delta: np.ndarray, vmax: float = 30.0) -> np.ndarray:
     flat = np.asarray(delta, dtype=np.float32).ravel()
     nan_mask = np.isnan(flat)
 
-    t = np.clip(flat / vmax, -1.0, 1.0)  # in [-1, 1]
-
-    # Negative t: lerp red → white; positive t: lerp white → blue
+    t = np.clip(flat / vmax, -1.0, 1.0)
     neg = t < 0
     pos = ~neg
 
@@ -93,13 +91,12 @@ def delta_color_array(delta: np.ndarray, vmax: float = 30.0) -> np.ndarray:
     g = np.empty_like(flat)
     b = np.empty_like(flat)
 
-    # Negative side: t in [-1,0], map to [0,1] fraction from neg to mid
-    frac_neg = 1.0 + t[neg]   # 0 at t=-1, 1 at t=0
+    # Lerp red → white on the negative side, white → blue on the positive side.
+    frac_neg = 1.0 + t[neg]
     r[neg] = _DIV_NEG[0] + frac_neg * (_DIV_MID[0] - _DIV_NEG[0])
     g[neg] = _DIV_NEG[1] + frac_neg * (_DIV_MID[1] - _DIV_NEG[1])
     b[neg] = _DIV_NEG[2] + frac_neg * (_DIV_MID[2] - _DIV_NEG[2])
 
-    # Positive side: t in [0,1], lerp mid → pos
     frac_pos = t[pos]
     r[pos] = _DIV_MID[0] + frac_pos * (_DIV_POS[0] - _DIV_MID[0])
     g[pos] = _DIV_MID[1] + frac_pos * (_DIV_POS[1] - _DIV_MID[1])

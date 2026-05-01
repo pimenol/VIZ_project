@@ -28,9 +28,8 @@ from controller import SelectionController
 from data import PtttRun, ss_segments
 from views.ss_track import SecondaryStructureTrack
 
-# Layout
 _LEFT = 52.0
-_RIGHT_MARGIN = 130.0   # room for legend
+_RIGHT_MARGIN = 130.0
 _TOP = 10.0
 _BOT_MARGIN = 28.0
 _TOTAL_W = 560.0
@@ -45,16 +44,15 @@ _LEGEND_ROW_H = 16.0
 _LEGEND_SWATCH_W = 12.0
 _LEGEND_SWATCH_H = 10.0
 
-# 8-color categorical palette (Tableau-inspired, no red/gray so they don't clash with overlays)
 _PALETTE = [
-    QColor(31, 119, 180),   # blue
-    QColor(255, 127, 14),   # orange
-    QColor(44, 160, 44),    # green
-    QColor(148, 103, 189),  # purple
-    QColor(140, 86, 75),    # brown
-    QColor(23, 190, 207),   # cyan
-    QColor(188, 189, 34),   # olive
-    QColor(214, 39, 40),    # red (last resort)
+    QColor(31, 119, 180),
+    QColor(255, 127, 14),
+    QColor(44, 160, 44),
+    QColor(148, 103, 189),
+    QColor(140, 86, 75),
+    QColor(23, 190, 207),
+    QColor(188, 189, 34),
+    QColor(214, 39, 40),
 ]
 
 
@@ -84,8 +82,7 @@ class ProfileScene(QGraphicsScene):
         self._res_lo = 0
         self._res_hi = run.n_residues - 1
         self._comparison = []
-        # Reset item-ref lists BEFORE clear() so _rebuild_axes won't try to
-        # removeItem() already-deleted C++ objects.
+        # Reset item refs BEFORE clear() — _rebuild_axes mustn't removeItem() already-deleted C++ objects.
         self._step_paths = {}
         self._res_line = None
         self._x_axis_items = []

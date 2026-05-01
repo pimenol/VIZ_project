@@ -1,0 +1,33 @@
+Codemap generation report — 2026-05-01
+========================================
+
+Status: INITIAL — no prior codemaps to diff against.
+
+Files scanned: 16 (.py only, excluding __pycache__)
+  Root:  chart_axes.py, colors.py, controller.py, data.py, main.py,
+         points_item.py, reduction.py, structure_detects.py, synthetic.py
+  Views: embedding_view.py, heatmap.py, line_chart.py, profile_view.py,
+         residue_detail.py, ss_track.py, __init__.py
+Total LOC: ~4063
+
+Codemaps written:
+  docs/CODEMAPS/architecture.md   — high-level data flow + module roles
+  docs/CODEMAPS/data.md           — PtttRun shape, load_run pipeline, caches
+  docs/CODEMAPS/views.md          — T1–T6 view classes and signal flow
+  docs/CODEMAPS/dependencies.md   — PySide6, numpy, lazy umap/sklearn
+
+Skipped (not applicable to a desktop GUI):
+  backend.md   — no HTTP routes / services / repos
+  frontend.md  — no web pages / state-management lib
+
+Architecture notes worth flagging:
+  - T5 (range brushing) is specced but not wired. SS-class checkbox filter
+    (Phase F) is the only cross-view fade currently active.
+  - structure.py was deleted this session (orphaned utility module).
+  - controller.py has been trimmed of T5 infrastructure
+    (stepRangeSelected/residueRangeSelected/comparisonResiduesChanged signals
+    + their setters/properties).
+  - No requirements.txt / pyproject.toml — deps inferred from imports.
+  - Python 3.10+ required (no `from __future__ import annotations` anywhere).
+
+Staleness: n/a (initial generation).

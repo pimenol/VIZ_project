@@ -23,8 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-# Allow `python views/embedding_view.py`-style imports during dev — main entry
-# is project-root, so views/ peers must reach back via the parent dir.
+# Allow direct `python views/embedding_view.py` runs by extending sys.path to project root.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from chart_axes import draw_axes, nice_ticks
@@ -54,8 +53,6 @@ _POINT_RADIUS = 4.0
 
 
 class EmbeddingScene(QGraphicsScene):
-    """Owns the PointsItem, axes, and labels for the embedding view."""
-
     def __init__(self, run: PtttRun) -> None:
         super().__init__()
         self.setSceneRect(0, 0, _TOTAL_W, _TOTAL_H)
@@ -94,13 +91,6 @@ class EmbeddingScene(QGraphicsScene):
         self._compute_reduction()
         self._refresh_step()
 
-    def set_method(self, method: str) -> None:
-        if method == self._method:
-            return
-        self._method = method
-        self._compute_reduction()
-        self._refresh_step()
-
     def set_current_step(self, step: int) -> None:
         if 0 <= step < self._run.n_steps:
             self._current_step = step
@@ -117,21 +107,10 @@ class EmbeddingScene(QGraphicsScene):
         self._ss_filter = set(allowed)
         self._apply_ss_filter()
 
-    def points_item(self) -> PointsItem:
-        return self._points
-
-    def hover_radius_scene(self) -> float:
-        return _HOVER_PIX_RADIUS
-
     def coords_2d_data(self) -> np.ndarray | None:
-        """Reduced [S, N, 2] coordinates in *data* space (PCA / UMAP / t-SNE units)."""
         return self._reduction.coords_2d if self._reduction is not None else None
 
-    def reduction_method(self) -> str:
-        return self._method
-
     def _compute_reduction(self) -> None:
-        # Cache directory: alongside the embeddings (esm) or PDBs (ca). Mode selects subdir.
         cache_dir: Path | None = None
         cache_key = f"{self._run.embedding_kind}_{self._run.n_steps}_{self._run.n_residues}_{self._run.embeddings_hd.shape[2]}"
         self._reduction = reduce_joint(
@@ -159,10 +138,7 @@ class EmbeddingScene(QGraphicsScene):
         self._update_var_label()
 
     def _to_scene_coords(self, coords_2d: np.ndarray) -> np.ndarray:
-        """Map [S, N, 2] data coords into scene pixel coords inside _PLOT_RECT.
-
-        Y is inverted (data y_lo at bottom of rect, y_hi at top).
-        """
+        # Y inverted: data y_lo at bottom of rect, y_hi at top.
         x = coords_2d[..., 0]
         y = coords_2d[..., 1]
         sx = _LEFT + (x - self._x_lo) / (self._x_hi - self._x_lo) * _PLOT_W
@@ -258,14 +234,11 @@ class EmbeddingScene(QGraphicsScene):
             self._legend_items.append(txt)
             x += sw + 2.0 + 14.0 + gap
 
-    # Hover/click translation helpers — public for the View to call.
     def residue_at(self, scene_point: QPointF) -> int:
         return self._points.index_at(scene_point, _HOVER_PIX_RADIUS)
 
 
 class EmbeddingView(QWidget):
-    """T4 view widget — currently snapshot mode + PCA only. Toolbar lands in step 10."""
-
     def __init__(self, run: PtttRun, ctrl: SelectionController, parent=None) -> None:
         super().__init__(parent)
         self._ctrl = ctrl
@@ -320,9 +293,6 @@ class EmbeddingView(QWidget):
 
     def coords_2d_data(self) -> np.ndarray | None:
         return self._scene.coords_2d_data()
-
-    def reduction_method(self) -> str:
-        return self._scene.reduction_method()
 
     def _view_mouse_move(self, event) -> None:
         sp = self._gview.mapToScene(event.pos())

@@ -42,14 +42,10 @@ class PtttRun:
 
 
 def ss_segments(ss_row: np.ndarray) -> list[tuple[int, int, int]]:
-    """Run-length encode an SS row.
-
-    Returns a list of (start, end_inclusive, label) tuples covering the entire row.
-    """
+    """Run-length encode an SS row → list of (start, end_inclusive, label)."""
     n = ss_row.size
     if n == 0:
         return []
-    # Boundaries are positions where label changes.
     change = np.where(np.diff(ss_row) != 0)[0] + 1
     starts = np.concatenate(([0], change))
     ends = np.concatenate((change - 1, [n - 1]))

@@ -326,7 +326,6 @@ class LineChartScene(QGraphicsScene):
             self.addItem(item)
             self._ss_path_items.append(item)
 
-        # Legend in the panel's top-right (under the title at top-left).
         sw = 10.0
         gap = 4.0
         font_pt = 7

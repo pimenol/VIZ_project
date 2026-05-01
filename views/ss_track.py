@@ -15,28 +15,22 @@ from PySide6.QtWidgets import (
     QToolTip,
 )
 
-# Allow `python views/ss_track.py`-style imports during dev — same pattern as embedding_view.
+# Allow direct `python views/ss_track.py` runs by extending sys.path to project root.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from colors import SS_COLORS, SS_LETTERS, SS_NAMES, ss_color
 from controller import SelectionController
 from data import PtttRun, ss_segments
 
-_TRACK_HEIGHT = 30.0          # widget pixel height
-_PLOT_TOP = 4.0               # vertical inset from top
-_PLOT_BOTTOM_INSET = 4.0      # vertical inset from bottom
-_LABEL_MIN_PX = 20.0          # only draw "H/E/C" label if segment >= this px wide
+_TRACK_HEIGHT = 30.0
+_PLOT_TOP = 4.0
+_PLOT_BOTTOM_INSET = 4.0
+_LABEL_MIN_PX = 20.0          # only draw "H/E/C" label if segment is at least this wide
 _RECT_Z = 5
 _LABEL_Z = 6
 
 
 class SecondaryStructureTrack(QGraphicsView):
-    """Thin horizontal strip of colored segments showing SS labels for the current step.
-
-    Aligns with the parent view's plot region via `plot_left` and `plot_width`. Updates on
-    `currentStepChanged` and on residue-range changes propagated through `set_residue_range`.
-    """
-
     def __init__(
         self,
         run: PtttRun,
@@ -53,7 +47,7 @@ class SecondaryStructureTrack(QGraphicsView):
         self._res_lo = 0
         self._res_hi = run.n_residues - 1
         self._step = 0
-        self._segments: list[tuple[int, int, int]] = []  # populated lazily
+        self._segments: list[tuple[int, int, int]] = []
 
         self._scene = QGraphicsScene(self)
         self.setScene(self._scene)
@@ -67,7 +61,6 @@ class SecondaryStructureTrack(QGraphicsView):
 
         self._segments_group = QGraphicsItemGroup()
         self._scene.addItem(self._segments_group)
-        # Children of segments_group are recreated on every refresh.
 
         self._refresh()
         ctrl.currentStepChanged.connect(self.set_step)
@@ -92,18 +85,12 @@ class SecondaryStructureTrack(QGraphicsView):
         self._res_hi = hi
         self._refresh()
 
-    def set_plot_geometry(self, plot_left: float, plot_width: float) -> None:
-        self._plot_left = plot_left
-        self._plot_width = plot_width
-        self._refresh()
-
-    def resizeEvent(self, event):  # noqa: D401 — Qt override
+    def resizeEvent(self, event):
         super().resizeEvent(event)
-        # Keep scene rect in sync with view width so coordinate mapping below is well-defined.
         self._scene.setSceneRect(QRectF(0, 0, self.viewport().width(), _TRACK_HEIGHT))
         self._refresh()
 
-    def mouseMoveEvent(self, event):  # noqa: D401 — Qt override
+    def mouseMoveEvent(self, event):
         sp_x = self.mapToScene(event.pos()).x()
         residue = self._scene_x_to_residue(sp_x)
         if residue < 0:
@@ -136,20 +123,17 @@ class SecondaryStructureTrack(QGraphicsView):
         return int(round(self._res_lo + frac * (n - 1)))
 
     def _residue_edges_to_scene_x(self, residue: int) -> tuple[float, float]:
-        """Return (x_left, x_right) of a residue cell in scene coords (inclusive boundaries)."""
         n = self._res_hi - self._res_lo + 1
         cell_w = self._plot_width / max(n, 1)
         x_left = self._plot_left + (residue - self._res_lo) * cell_w
         return x_left, x_left + cell_w
 
     def _refresh(self) -> None:
-        # Children of the group are owned by it; removing the group's children clears them.
         for child in list(self._segments_group.childItems()):
             self._segments_group.removeFromGroup(child)
             self._scene.removeItem(child)
 
         ss_row = self._run.ss_matrix[self._step]
-        # Restrict to residue range; ss_segments operates on the slice, then offset back.
         sub = ss_row[self._res_lo : self._res_hi + 1]
         local_segs = ss_segments(sub)
         self._segments = [
