@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from chart_axes import draw_axes, nice_ticks
-from colors import alphafold_color_array
+from colors import SS_LETTERS, alphafold_color_array, ss_color
 from controller import SelectionController
 from data import PtttRun
 
@@ -52,6 +52,11 @@ _CTX_H = _CTX_CELL_H + 22
 _REF_LEVELS = (50.0, 70.0, 90.0)
 _INDICATOR_COLOR = QColor(255, 80, 0)
 _TRAJECTORY_COLOR = QColor(60, 80, 200)
+
+# SS evolution strip dims — uses _MINI_LEFT/_MINI_PLOT_W for x-alignment with other minis.
+_SS_EVO_H = 54.0
+_SS_STRIP_TOP = 14.0
+_SS_STRIP_H = 22.0
 
 
 class _PlddtTrajectoryView(QGraphicsView):
@@ -171,6 +176,130 @@ class _PlddtTrajectoryView(QGraphicsView):
             return
         sx = self._x_to_scene(float(step))
         self._indicator.setLine(sx, _MINI_TOP, sx, _MINI_TOP + _MINI_PLOT_H)
+
+    def _on_current_step(self, step: int) -> None:
+        self._move_indicator(step)
+
+
+class _SsEvolutionView(QGraphicsView):
+    """Per-step SS labels for one residue, plus a step indicator and a 'N distinct' badge."""
+
+    def __init__(self, run: PtttRun, ctrl: SelectionController, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._run = run
+        self._ctrl = ctrl
+        self._residue = -1
+        self._scene = QGraphicsScene()
+        self._scene.setSceneRect(0, 0, _MINI_W, _SS_EVO_H)
+        self.setScene(self._scene)
+        self.setRenderHints(QPainter.Antialiasing | QPainter.TextAntialiasing)
+        self.setBackgroundBrush(QColor(252, 252, 252))
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setFixedHeight(int(_SS_EVO_H + 4))
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+        self._indicator: QGraphicsLineItem | None = None
+
+        ctrl.currentStepChanged.connect(self._on_current_step)
+
+    def set_run(self, run: PtttRun) -> None:
+        self._run = run
+
+    def set_residue(self, residue: int) -> None:
+        self._residue = residue
+        self._rebuild()
+
+    def mousePressEvent(self, event) -> None:  # type: ignore[override]
+        sp = self.mapToScene(event.pos())
+        if _SS_STRIP_TOP <= sp.y() <= _SS_STRIP_TOP + _SS_STRIP_H and self._residue >= 0:
+            n = max(self._run.n_steps, 1)
+            t = (sp.x() - _MINI_LEFT) / _MINI_PLOT_W
+            step = int(round(t * (n - 1)))
+            step = max(0, min(n - 1, step))
+            self._ctrl.setCurrentStep(step)
+        super().mousePressEvent(event)
+
+    def _rebuild(self) -> None:
+        self._scene.clear()
+        self._indicator = None
+        if self._residue < 0 or self._residue >= self._run.n_residues:
+            return
+
+        n = self._run.n_steps
+        ss_col = self._run.ss_matrix[:, self._residue]
+        cell_w = _MINI_PLOT_W / max(n, 1)
+
+        # Step cells.
+        cell_pen = QPen(QColor(120, 120, 120), 0.4)
+        cell_pen.setCosmetic(True)
+        font_letter = QFont()
+        font_letter.setPointSize(7)
+        font_letter.setBold(True)
+        for s in range(n):
+            label = int(ss_col[s])
+            x = _MINI_LEFT + s * cell_w
+            rect = QGraphicsRectItem(x, _SS_STRIP_TOP, cell_w, _SS_STRIP_H)
+            rect.setBrush(QBrush(ss_color(label)))
+            rect.setPen(cell_pen)
+            rect.setZValue(5)
+            self._scene.addItem(rect)
+            if cell_w >= 14.0:
+                ltr = QGraphicsSimpleTextItem(SS_LETTERS[label])
+                ltr.setFont(font_letter)
+                ltr.setBrush(QColor(35, 35, 35))
+                br = ltr.boundingRect()
+                ltr.setPos(x + (cell_w - br.width()) * 0.5, _SS_STRIP_TOP + (_SS_STRIP_H - br.height()) * 0.5)
+                ltr.setZValue(6)
+                self._scene.addItem(ltr)
+
+        # Step axis ticks below the strip.
+        ax_pen = QPen(QColor(120, 120, 120), 0.6)
+        ax_pen.setCosmetic(True)
+        font_tick = QFont()
+        font_tick.setPointSize(7)
+        for v in nice_ticks(0, max(n - 1, 0), target=4):
+            sx = _MINI_LEFT + (v / max(n - 1, 1)) * _MINI_PLOT_W
+            tick = QGraphicsLineItem(sx, _SS_STRIP_TOP + _SS_STRIP_H, sx, _SS_STRIP_TOP + _SS_STRIP_H + 3)
+            tick.setPen(ax_pen)
+            tick.setZValue(4)
+            self._scene.addItem(tick)
+            lbl = QGraphicsSimpleTextItem(str(int(v)))
+            lbl.setFont(font_tick)
+            lbl.setBrush(QColor(80, 80, 80))
+            br = lbl.boundingRect()
+            lbl.setPos(sx - br.width() / 2, _SS_STRIP_TOP + _SS_STRIP_H + 3)
+            lbl.setZValue(4)
+            self._scene.addItem(lbl)
+
+        # "N distinct SS labels" badge in upper-right; bold/red when unstable.
+        n_distinct = len({int(v) for v in ss_col.tolist()})
+        badge = QGraphicsSimpleTextItem(f"{n_distinct} distinct SS labels")
+        bf = QFont()
+        bf.setPointSize(7)
+        bf.setBold(n_distinct > 1)
+        badge.setFont(bf)
+        badge.setBrush(QColor(180, 70, 70) if n_distinct > 1 else QColor(110, 110, 110))
+        bbr = badge.boundingRect()
+        badge.setPos(_MINI_LEFT + _MINI_PLOT_W - bbr.width(), 0.0)
+        badge.setZValue(7)
+        self._scene.addItem(badge)
+
+        # Current-step indicator on top of the strip.
+        ind_pen = QPen(_INDICATOR_COLOR, 1.4)
+        ind_pen.setCosmetic(True)
+        self._indicator = QGraphicsLineItem(0, _SS_STRIP_TOP - 1, 0, _SS_STRIP_TOP + _SS_STRIP_H + 1)
+        self._indicator.setPen(ind_pen)
+        self._indicator.setZValue(10)
+        self._scene.addItem(self._indicator)
+        self._move_indicator(self._ctrl.current_step)
+
+    def _move_indicator(self, step: int) -> None:
+        if self._indicator is None:
+            return
+        n_max = max(self._run.n_steps - 1, 1)
+        sx = _MINI_LEFT + (step / n_max) * _MINI_PLOT_W
+        self._indicator.setLine(sx, _SS_STRIP_TOP - 1, sx, _SS_STRIP_TOP + _SS_STRIP_H + 1)
 
     def _on_current_step(self, step: int) -> None:
         self._move_indicator(step)
@@ -414,6 +543,10 @@ class ResidueDetailDock(QDockWidget):
         self._plddt_chart = _PlddtTrajectoryView(run, ctrl)
         layout.addWidget(self._plddt_chart)
 
+        layout.addWidget(QLabel("SS evolution"))
+        self._ss_strip = _SsEvolutionView(run, ctrl)
+        layout.addWidget(self._ss_strip)
+
         layout.addWidget(QLabel("Embedding trajectory"))
         self._emb_chart = _EmbeddingTrajectoryView(run, coords_2d_provider)
         layout.addWidget(self._emb_chart)
@@ -431,6 +564,7 @@ class ResidueDetailDock(QDockWidget):
     def set_run(self, run: PtttRun) -> None:
         self._run = run
         self._plddt_chart.set_run(run)
+        self._ss_strip.set_run(run)
         self._emb_chart.set_run(run)
         self._seq_strip.set_run(run)
         self.set_residue(-1)
@@ -442,6 +576,7 @@ class ResidueDetailDock(QDockWidget):
             return
         self._update_header()
         self._plddt_chart.set_residue(residue)
+        self._ss_strip.set_residue(residue)
         self._emb_chart.set_residue(residue)
         self._seq_strip.set_residue(residue)
         self.show()
