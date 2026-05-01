@@ -76,7 +76,6 @@ class ProfileScene(QGraphicsScene):
         self._comparison: list[int] = []
         self._step_paths: dict[int, QGraphicsPathItem] = {}
         self._res_line: QGraphicsLineItem | None = None
-        self._static_items_built = False
         self._ss_filter: set[int] = {0, 1, 2}
         self._ss_filter_step: int = 0
         self._ss_overlay_items: list[QGraphicsRectItem] = []
@@ -91,7 +90,6 @@ class ProfileScene(QGraphicsScene):
         # removeItem() already-deleted C++ objects.
         self._step_paths = {}
         self._res_line = None
-        self._static_items_built = False
         self._x_axis_items = []
         self._legend_items = []
         self._ss_overlay_items = []
@@ -243,7 +241,6 @@ class ProfileScene(QGraphicsScene):
         self._res_line = rl
 
         self._legend_items = []
-        self._static_items_built = True
         self.setSceneRect(self.itemsBoundingRect().adjusted(-4, -4, 4, 4))
 
     def _rebuild_axes(self) -> None:

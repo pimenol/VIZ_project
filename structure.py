@@ -1,8 +1,6 @@
-import subprocess
 import numpy as np
 import Bio.PDB as bp
 import biotite.structure.io as bsio
-from proteinttt.utils.align_pdb_numbering import align_pdb_numbering
 
 import os
 from proteinttt.utils.protein import AA3_TO_AA1

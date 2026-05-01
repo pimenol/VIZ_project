@@ -77,7 +77,6 @@ class _PlddtTrajectoryView(QGraphicsView):
         self.setFixedHeight(int(_MINI_H + 4))
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
-        self._path_item: QGraphicsPathItem | None = None
         self._indicator: QGraphicsLineItem | None = None
         self._axes = None
 
@@ -104,7 +103,6 @@ class _PlddtTrajectoryView(QGraphicsView):
 
     def _rebuild(self) -> None:
         self._scene.clear()
-        self._path_item = None
         self._indicator = None
         self._axes = None
         if self._residue < 0 or self._residue >= self._run.n_residues:
@@ -153,7 +151,6 @@ class _PlddtTrajectoryView(QGraphicsView):
         item.setPen(pen)
         item.setZValue(10)
         self._scene.addItem(item)
-        self._path_item = item
 
         # Current-step indicator.
         ind_pen = QPen(_INDICATOR_COLOR, 1.2)
