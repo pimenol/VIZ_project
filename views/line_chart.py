@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from chart_axes import nice_ticks
+from colors import SS_COLORS, SS_NAMES
 from controller import SelectionController
 from data import PtttRun
 
@@ -64,6 +65,24 @@ def _series_for(run: PtttRun, idx: int) -> np.ndarray:
     return (run.plddt_mean, run.lddt)[idx]
 
 
+def _ss_stratified_plddt_means(run: PtttRun) -> np.ndarray:
+    """Per-step mean pLDDT for residues whose SS label matches each class.
+
+    Returns shape (3, S): row 0 = helix, 1 = sheet, 2 = coil. NaN where no residues match.
+    SS changes across steps, so the mask is recomputed per row of ss_matrix.
+    """
+    plddt = run.plddt_matrix.astype(np.float64)
+    ss = run.ss_matrix
+    out = np.full((3, run.n_steps), np.nan, dtype=np.float64)
+    for label in range(3):
+        mask = ss == label
+        counts = mask.sum(axis=1)
+        sums = (plddt * mask).sum(axis=1)
+        valid = counts > 0
+        out[label, valid] = sums[valid] / counts[valid]
+    return out
+
+
 class LineChartScene(QGraphicsScene):
     def __init__(self, run: PtttRun) -> None:
         super().__init__()
@@ -71,6 +90,9 @@ class LineChartScene(QGraphicsScene):
         self._step_line: QGraphicsLineItem | None = None
         self._crosshair_x: QGraphicsLineItem | None = None
         self._crosshair_labels: list[QGraphicsTextItem] = []
+        self._ss_visible = False
+        self._ss_path_items: list[QGraphicsPathItem] = []
+        self._ss_legend_items: list = []
         self._build()
 
     def set_run(self, run: PtttRun) -> None:
@@ -79,7 +101,22 @@ class LineChartScene(QGraphicsScene):
         self._step_line = None
         self._crosshair_x = None
         self._crosshair_labels = []
+        self._ss_path_items = []
+        self._ss_legend_items = []
         self._build()
+        self._apply_ss_visibility()
+
+    def set_ss_visible(self, visible: bool) -> None:
+        if visible == self._ss_visible:
+            return
+        self._ss_visible = visible
+        self._apply_ss_visibility()
+
+    def _apply_ss_visibility(self) -> None:
+        for item in self._ss_path_items:
+            item.setVisible(self._ss_visible)
+        for item in self._ss_legend_items:
+            item.setVisible(self._ss_visible)
 
     def move_step_line(self, step: int) -> None:
         if self._step_line is None:
@@ -184,6 +221,15 @@ class LineChartScene(QGraphicsScene):
 
         y_lo = float(np.nanmin(series))
         y_hi = float(np.nanmax(series))
+        # On the pLDDT panel, expand range to cover SS-stratified means even when hidden,
+        # so the y axis stays stable when the user toggles them on.
+        ss_strat: np.ndarray | None = None
+        if idx == 0:
+            ss_strat = _ss_stratified_plddt_means(run)
+            finite = ss_strat[np.isfinite(ss_strat)]
+            if finite.size:
+                y_lo = min(y_lo, float(finite.min()))
+                y_hi = max(y_hi, float(finite.max()))
         if y_lo == y_hi:
             y_lo -= 1; y_hi += 1
 
@@ -249,7 +295,66 @@ class LineChartScene(QGraphicsScene):
             peak_lbl.setPos(bx + 6, by - peak_lbl.boundingRect().height() / 2)
             peak_lbl.setZValue(12)
 
+            if ss_strat is not None:
+                self._draw_ss_stratified(rect, ss_strat, y_lo, y_hi)
+
         self._draw_x_axis(rect, run.n_steps - 1, is_bottom)
+
+    def _draw_ss_stratified(
+        self, rect: QRectF, ss_strat: np.ndarray, y_lo: float, y_hi: float
+    ) -> None:
+        for label in range(3):
+            series = ss_strat[label]
+            path = QPainterPath()
+            started = False
+            for s_int in range(series.size):
+                v = series[s_int]
+                if not np.isfinite(v):
+                    started = False
+                    continue
+                sx = self._step_to_x(s_int, rect)
+                sy = self._val_to_y(float(v), y_lo, y_hi, rect)
+                if started:
+                    path.lineTo(sx, sy)
+                else:
+                    path.moveTo(sx, sy)
+                    started = True
+            pen = QPen(SS_COLORS[label], 1.4, Qt.DashLine)
+            pen.setCosmetic(True)
+            item = QGraphicsPathItem(path)
+            item.setPen(pen)
+            item.setZValue(7)  # below the main pLDDT curve (z=8)
+            item.setVisible(self._ss_visible)
+            self.addItem(item)
+            self._ss_path_items.append(item)
+
+        # Legend in the panel's top-right (under the title at top-left).
+        sw = 10.0
+        gap = 4.0
+        font_pt = 7
+        x = rect.right() - 4.0
+        y = rect.top() + 4.0
+        # Build right-to-left so we can right-align without knowing widths up front.
+        for label in (2, 1, 0):
+            name = SS_NAMES[label]
+            txt = self.addText(name)
+            txt.setDefaultTextColor(QColor(60, 60, 60))
+            f = txt.font(); f.setPointSize(font_pt); txt.setFont(f)
+            br = txt.boundingRect()
+            txt.setPos(x - br.width(), y - 2.0)
+            txt.setZValue(11)
+            txt.setVisible(self._ss_visible)
+            self._ss_legend_items.append(txt)
+            x -= br.width() + 2.0
+
+            rect_item = QGraphicsRectItem(x - sw, y, sw, sw)
+            rect_item.setBrush(SS_COLORS[label])
+            rect_item.setPen(QPen(QColor(80, 80, 80), 0.4))
+            rect_item.setZValue(11)
+            rect_item.setVisible(self._ss_visible)
+            self.addItem(rect_item)
+            self._ss_legend_items.append(rect_item)
+            x -= sw + gap
 
     def _draw_x_axis(self, rect: QRectF, max_step: int, show_labels: bool) -> None:
         ax_pen = QPen(QColor(80, 80, 80), 0.8)
@@ -315,6 +420,9 @@ class LineChartView(QGraphicsView):
     def set_run(self, run: PtttRun) -> None:
         self._run = run
         self._lscene.set_run(run)
+
+    def set_ss_visible(self, visible: bool) -> None:
+        self._lscene.set_ss_visible(visible)
 
     def mouseMoveEvent(self, event) -> None:
         sp = self.mapToScene(event.pos())

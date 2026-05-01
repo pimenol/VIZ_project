@@ -10,6 +10,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QShortcut, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QComboBox,
     QFileDialog,
     QLabel,
@@ -101,6 +102,13 @@ class MainWindow(QMainWindow):
         tb.addWidget(self._res_hi)
         self._res_lo.valueChanged.connect(self._on_residue_range)
         self._res_hi.valueChanged.connect(self._on_residue_range)
+
+        tb.addSeparator()
+
+        self._ss_strat_check = QCheckBox("SS-stratified")
+        self._ss_strat_check.setChecked(False)
+        self._ss_strat_check.toggled.connect(self._on_ss_stratified_toggled)
+        tb.addWidget(self._ss_strat_check)
 
         tb.addSeparator()
 
@@ -251,6 +259,9 @@ class MainWindow(QMainWindow):
 
     def _on_color_mode(self, mode: str) -> None:
         self._heatmap.set_color_mode("delta" if mode == "Delta" else "absolute")
+
+    def _on_ss_stratified_toggled(self, checked: bool) -> None:
+        self._line_chart.set_ss_visible(checked)
 
     def _on_residue_range(self) -> None:
         lo = self._res_lo.value()
