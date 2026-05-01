@@ -9,6 +9,8 @@ from typing import Literal
 
 import numpy as np
 
+from structure_detects import describe_protein_structure
+
 log = logging.getLogger(__name__)
 
 _STEP_RE = re.compile(r"step_(\d+)\.pdb$")
@@ -143,8 +145,6 @@ def _compute_ss_matrix(
     n_residues: int,
 ) -> np.ndarray:
     """For each step, run SS classification on its PDB and stack into [S, N] uint8."""
-    from structure_detects import describe_protein_structure  # local import: heavy
-
     rows: list[np.ndarray] = []
     for s in steps:
         s_int = int(s)

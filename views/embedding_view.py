@@ -6,14 +6,19 @@ from pathlib import Path
 import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import (
+    QBrush,
     QColor,
+    QFont,
     QPainter,
+    QPen,
     QSurfaceFormat,
 )
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import (
     QComboBox,
+    QGraphicsRectItem,
     QGraphicsScene,
+    QGraphicsSimpleTextItem,
     QGraphicsTextItem,
     QGraphicsView,
     QHBoxLayout,
@@ -202,9 +207,6 @@ class EmbeddingScene(QGraphicsScene):
         self._points.set_alpha_mask(mask)
 
     def _rebuild_legend(self) -> None:
-        from PySide6.QtWidgets import QGraphicsRectItem, QGraphicsSimpleTextItem
-        from PySide6.QtGui import QBrush, QPen, QFont
-
         for item in self._legend_items:
             self.removeItem(item)
         self._legend_items = []

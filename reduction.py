@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+import umap
+from sklearn.manifold import TSNE
 
 
 @dataclass(frozen=True)
@@ -33,7 +35,6 @@ def reduce_pca(X: np.ndarray, n_components: int = 2) -> tuple[np.ndarray, np.nda
 
 
 def reduce_umap(X: np.ndarray, n_components: int = 2) -> np.ndarray:
-    import umap  # imported lazily — pulls numba/scipy
     reducer = umap.UMAP(
         n_components=n_components,
         n_neighbors=15,
@@ -44,7 +45,6 @@ def reduce_umap(X: np.ndarray, n_components: int = 2) -> np.ndarray:
 
 
 def reduce_tsne(X: np.ndarray, n_components: int = 2) -> np.ndarray:
-    from sklearn.manifold import TSNE
     tsne = TSNE(
         n_components=n_components,
         perplexity=30,

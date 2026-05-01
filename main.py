@@ -4,8 +4,8 @@ import argparse
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QShortcut, QKeySequence
+from PySide6.QtCore import QRectF, Qt
+from PySide6.QtGui import QImage, QKeySequence, QPainter, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -13,17 +13,26 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QLabel,
     QMainWindow,
+    QMessageBox,
     QPushButton,
     QSlider,
     QSpinBox,
     QSplitter,
     QStatusBar,
     QToolBar,
+    QVBoxLayout,
+    QWidget,
 )
 
 from controller import SelectionController
 from data import load_run, PtttRun
 from synthetic import make_demo_run
+from views.embedding_view import EmbeddingView
+from views.heatmap import HeatmapView
+from views.line_chart import LineChartView
+from views.profile_view import ProfileView
+from views.residue_detail import ResidueDetailDock
+from views.ss_track import SecondaryStructureTrack
 
 _SLIDER_WIDTH = 160
 _SPIN_WIDTH = 55
@@ -129,14 +138,6 @@ class MainWindow(QMainWindow):
         self._step_spin.valueChanged.connect(self._ctrl.setCurrentStep)
 
     def _build_central(self, run: PtttRun) -> None:
-        # Lazy-import views so module load doesn't pull Qt OpenGL until needed.
-        from views.line_chart import LineChartView
-        from views.heatmap import HeatmapView
-        from views.profile_view import ProfileView
-        from views.embedding_view import EmbeddingView
-        from views.ss_track import SecondaryStructureTrack
-        from PySide6.QtWidgets import QVBoxLayout, QWidget
-
         self._line_chart = LineChartView(run, self._ctrl, self)
         self._heatmap = HeatmapView(run, self._ctrl, self)
         self._profile = ProfileView(run, self._ctrl, self)
@@ -174,7 +175,6 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(root_splitter)
 
     def _build_detail_dock(self, run: PtttRun) -> None:
-        from views.residue_detail import ResidueDetailDock
         self._detail_dock = ResidueDetailDock(
             run, self._ctrl, self._embedding.coords_2d_data, self,
         )
@@ -240,7 +240,6 @@ class MainWindow(QMainWindow):
         try:
             run = load_run(Path(tsv), Path(pdbs))
         except Exception as exc:
-            from PySide6.QtWidgets import QMessageBox
             QMessageBox.critical(self, "Load error", str(exc))
             return
         self._reload(run)
@@ -289,8 +288,6 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getSaveFileName(self, "Save PNG", "view.png", "PNG (*.png)")
         if not path:
             return
-        from PySide6.QtGui import QImage, QPainter
-        from PySide6.QtCore import QRectF
         # Export the heatmap scene (most information-dense view)
         scene = self._heatmap.scene()
         sr = scene.sceneRect()
