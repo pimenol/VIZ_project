@@ -174,7 +174,8 @@ class HeatmapScene(QGraphicsScene):
         self.addItem(pi)
         self._pixmap_item = pi
 
-        step_pen = QPen(_STEP_OVL_COLOR, 1.5); step_pen.setCosmetic(True)
+        step_pen = QPen(_STEP_OVL_COLOR, 1.5)
+        step_pen.setCosmetic(True)
         sl = QGraphicsLineItem(pr.left(), pr.top(), pr.right(), pr.top())
         sl.setPen(step_pen); sl.setZValue(20)
         self.addItem(sl)
