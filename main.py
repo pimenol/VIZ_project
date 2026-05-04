@@ -154,20 +154,24 @@ class MainWindow(QMainWindow):
         top_splitter = QSplitter(Qt.Horizontal)
         top_splitter.addWidget(self._line_chart)
         top_splitter.addWidget(self._embedding)
-        top_splitter.setStretchFactor(0, 3)
-        top_splitter.setStretchFactor(1, 2)
+        top_splitter.setStretchFactor(0, 1)
+        top_splitter.setStretchFactor(1, 1)
 
         bottom_splitter = QSplitter(Qt.Horizontal)
         bottom_splitter.addWidget(heatmap_container)
         bottom_splitter.addWidget(self._profile)
-        bottom_splitter.setStretchFactor(0, 3)
-        bottom_splitter.setStretchFactor(1, 2)
+        bottom_splitter.setStretchFactor(0, 1)
+        bottom_splitter.setStretchFactor(1, 1)
 
         root_splitter = QSplitter(Qt.Vertical)
         root_splitter.addWidget(top_splitter)
         root_splitter.addWidget(bottom_splitter)
-        root_splitter.setStretchFactor(0, 2)
-        root_splitter.setStretchFactor(1, 3)
+        root_splitter.setStretchFactor(0, 1)
+        root_splitter.setStretchFactor(1, 1)
+
+        self._top_splitter = top_splitter
+        self._bottom_splitter = bottom_splitter
+        self._root_splitter = root_splitter
 
         self.setCentralWidget(root_splitter)
 
@@ -244,9 +248,14 @@ class MainWindow(QMainWindow):
         self._run = run
         self._step_slider.setMaximum(run.n_steps - 1)
         self._step_spin.setMaximum(run.n_steps - 1)
+        self._res_lo.blockSignals(True)
+        self._res_hi.blockSignals(True)
         self._res_lo.setMaximum(run.n_residues - 1)
+        self._res_lo.setValue(0)
         self._res_hi.setMaximum(run.n_residues - 1)
         self._res_hi.setValue(run.n_residues - 1)
+        self._res_lo.blockSignals(False)
+        self._res_hi.blockSignals(False)
         self._line_chart.set_run(run)
         self._heatmap.set_run(run)
         self._profile.set_run(run)
@@ -269,8 +278,9 @@ class MainWindow(QMainWindow):
         self._ctrl.setSsClassFilter(allowed)
 
     def _on_residue_range(self) -> None:
-        lo = self._res_lo.value()
-        hi = self._res_hi.value()
+        n = self._run.n_residues
+        lo = max(0, min(self._res_lo.value(), n - 1))
+        hi = max(0, min(self._res_hi.value(), n - 1))
         if lo > hi:
             return
         self._heatmap.set_residue_range(lo, hi)
@@ -290,6 +300,13 @@ class MainWindow(QMainWindow):
         scene.render(p, QRectF(img.rect()), sr)
         p.end()
         img.save(path)
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        for sp in (self._root_splitter, self._top_splitter, self._bottom_splitter):
+            total = sum(sp.sizes())
+            half = total // 2
+            sp.setSizes([half, total - half])
 
     def _step_by(self, delta: int) -> None:
         s = max(0, min(self._run.n_steps - 1, self._ctrl.current_step + delta))

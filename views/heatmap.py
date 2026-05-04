@@ -30,8 +30,8 @@ from data import PtttRun, ss_segments
 
 _LEFT_MARGIN = 52.0
 _TOP_MARGIN = 10.0
-_PLOT_W = 600.0
-_PLOT_H = 400.0
+_PLOT_W = 500.0
+_PLOT_H = 300.0
 _PLOT_RECT = QRectF(_LEFT_MARGIN, _TOP_MARGIN, _PLOT_W, _PLOT_H)
 
 _LEGEND_W = 18.0
@@ -177,13 +177,17 @@ class HeatmapScene(QGraphicsScene):
         step_pen = QPen(_STEP_OVL_COLOR, 1.5)
         step_pen.setCosmetic(True)
         sl = QGraphicsLineItem(pr.left(), pr.top(), pr.right(), pr.top())
-        sl.setPen(step_pen); sl.setZValue(20)
+        sl.setPen(step_pen)
+        sl.setZValue(20)
         self.addItem(sl)
         self._step_line = sl
 
-        res_pen = QPen(_RES_OVL_COLOR, 1.5); res_pen.setCosmetic(True)
+        res_pen = QPen(_RES_OVL_COLOR, 1.5)
+        res_pen.setCosmetic(True)
         rl = QGraphicsLineItem(pr.left(), pr.top(), pr.left(), pr.bottom())
-        rl.setPen(res_pen); rl.setZValue(20); rl.setVisible(False)
+        rl.setPen(res_pen)
+        rl.setZValue(20)
+        rl.setVisible(False)
         self.addItem(rl)
         self._res_line = rl
 
