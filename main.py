@@ -24,7 +24,6 @@ from PySide6.QtWidgets import (
 
 from controller import SelectionController
 from data import load_run, load_run_from_dir, PtttRun
-from synthetic import make_demo_run
 from views.embedding_view import EmbeddingView
 from views.heatmap import HeatmapView
 from views.line_chart import LineChartView
@@ -242,7 +241,8 @@ class MainWindow(QMainWindow):
         self._reload(run)
 
     def _on_demo(self) -> None:
-        self._reload(make_demo_run())
+        demo_dir = Path(__file__).parent / "data" / "logs" / "A0A7G9V4P1"
+        self._reload(load_run_from_dir(demo_dir))
 
     def _reload(self, run: PtttRun) -> None:
         self._run = run
@@ -328,7 +328,7 @@ class MainWindow(QMainWindow):
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="ProteinTTT visualization")
     grp = p.add_mutually_exclusive_group(required=True)
-    grp.add_argument("--demo", action="store_true", help="Load synthetic demo data")
+    grp.add_argument("--demo", action="store_true", help="Load A0A7G9V4P1 demo run")
     grp.add_argument("--tsv", type=Path, metavar="FILE", help="Metrics TSV path")
     p.add_argument("--pdbs", type=Path, metavar="DIR", help="PDB folder (required with --tsv)")
     p.add_argument(
@@ -348,7 +348,7 @@ def main() -> None:
     app.setStyle("Fusion")
 
     if args.demo:
-        run = make_demo_run()
+        run = load_run_from_dir(Path(__file__).parent / "data" / "logs" / "A0A7G9V4P1")
     else:
         run = load_run(args.tsv, args.pdbs, recompute_ss=args.recompute_ss)
 
