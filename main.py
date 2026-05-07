@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from controller import SelectionController
-from data import load_run, load_run_from_dir, PtttRun
+from data import load_run_from_dir, PtttRun
 from views.embedding_view import EmbeddingView
 from views.heatmap import HeatmapView
 from views.line_chart import LineChartView
@@ -329,8 +329,7 @@ def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="ProteinTTT visualization")
     grp = p.add_mutually_exclusive_group(required=True)
     grp.add_argument("--demo", action="store_true", help="Load A0A7G9V4P1 demo run")
-    grp.add_argument("--tsv", type=Path, metavar="FILE", help="Metrics TSV path")
-    p.add_argument("--pdbs", type=Path, metavar="DIR", help="PDB folder (required with --tsv)")
+    grp.add_argument("--dir", type=Path, metavar="DIR", help="Run directory (contains pdbs/ and *_log.tsv)")
     p.add_argument(
         "--recompute-ss", action="store_true",
         help="Force secondary-structure recomputation, ignoring any cached ss_matrix.npy",
@@ -340,9 +339,6 @@ def _parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = _parse_args()
-    if not args.demo and args.pdbs is None:
-        print("error: --pdbs is required when using --tsv", file=sys.stderr)
-        sys.exit(1)
 
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
@@ -350,7 +346,7 @@ def main() -> None:
     if args.demo:
         run = load_run_from_dir(Path(__file__).parent / "data" / "logs" / "A0A7G9V4P1")
     else:
-        run = load_run(args.tsv, args.pdbs, recompute_ss=args.recompute_ss)
+        run = load_run_from_dir(args.dir, recompute_ss=args.recompute_ss)
 
     win = MainWindow(run)
     win.show()
