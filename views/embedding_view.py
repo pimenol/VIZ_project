@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
-from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtCore import QPointF, QRectF
 from PySide6.QtGui import (
     QBrush,
     QColor,
@@ -19,7 +19,6 @@ from PySide6.QtWidgets import (
     QGraphicsRectItem,
     QGraphicsScene,
     QGraphicsSimpleTextItem,
-    QGraphicsTextItem,
     QGraphicsView,
     QHBoxLayout,
     QLabel,
@@ -178,13 +177,9 @@ class EmbeddingScene(QGraphicsScene):
         )
 
     def _update_var_label(self) -> None:
-        if self._method == "pca" and self._reduction and self._reduction.explained_variance_ratio:
+        if self._reduction and self._reduction.explained_variance_ratio:
             a, b = self._reduction.explained_variance_ratio
             text = f"PC1: {a*100:.1f}%   PC2: {b*100:.1f}%"
-        elif self._method == "umap":
-            text = "UMAP-1 / UMAP-2"
-        elif self._method == "tsne":
-            text = "t-SNE 1 / t-SNE 2"
         else:
             text = ""
         self._var_label.setPlainText(text)

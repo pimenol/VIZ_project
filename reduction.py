@@ -3,15 +3,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
-import umap
-from sklearn.manifold import TSNE
 
 
 @dataclass(frozen=True)
 class ReductionResult:
-    coords_2d: np.ndarray                                  
-    method: str                                         
-    explained_variance_ratio: tuple[float, float] | None  
+    coords_2d: np.ndarray
+    method: str
+    explained_variance_ratio: tuple[float, float] | None
 
 
 def reduce_pca(X: np.ndarray, n_components: int = 2) -> tuple[np.ndarray, np.ndarray]:
@@ -23,31 +21,11 @@ def reduce_pca(X: np.ndarray, n_components: int = 2) -> tuple[np.ndarray, np.nda
 
     Xc = X - X.mean(axis=0, keepdims=True)
     U, s, Vt = np.linalg.svd(Xc, full_matrices=False)
-    Y = U[:, :n_components] * s[:n_components]               
+    Y = U[:, :n_components] * s[:n_components]
     eigvals = (s ** 2) / max(M - 1, 1)
     total_var = float(eigvals.sum())
     ratio = (eigvals[:n_components] / total_var) if total_var > 0 else np.zeros(n_components, dtype=float)
     return Y.astype(np.float32, copy=False), ratio.astype(float, copy=False)
-
-
-def reduce_umap(X: np.ndarray, n_components: int = 2) -> np.ndarray:
-    reducer = umap.UMAP(
-        n_components=n_components,
-        n_neighbors=15,
-        min_dist=0.1,
-        random_state=0,
-    )
-    return reducer.fit_transform(X).astype(np.float32, copy=False)
-
-
-def reduce_tsne(X: np.ndarray, n_components: int = 2) -> np.ndarray:
-    tsne = TSNE(
-        n_components=n_components,
-        perplexity=30,
-        init="pca",
-        random_state=0,
-    )
-    return tsne.fit_transform(X).astype(np.float32, copy=False)
 
 
 def reduce_joint(
@@ -61,7 +39,7 @@ def reduce_joint(
         raise ValueError(f"embeddings must be [S, N, D], got shape {embeddings.shape}")
     S, N, D = embeddings.shape
     method = method.lower()
-    if method not in ("pca", "umap", "tsne"):
+    if method != "pca":
         raise ValueError(f"unknown method {method!r}")
 
     if cache_dir is not None and not recompute:
@@ -70,23 +48,12 @@ def reduce_joint(
             return cached
 
     flat = embeddings.reshape(S * N, D).astype(np.float32, copy=False)
-
-    if method == "pca":
-        Y, var_ratio = reduce_pca(flat, n_components=2)
-        result = ReductionResult(
-            coords_2d=Y.reshape(S, N, 2),
-            method="pca",
-            explained_variance_ratio=(float(var_ratio[0]), float(var_ratio[1])),
-        )
-    else:
-        if D > 50:
-            flat, _ = reduce_pca(flat, n_components=50)
-        Y = reduce_umap(flat) if method == "umap" else reduce_tsne(flat)
-        result = ReductionResult(
-            coords_2d=Y.reshape(S, N, 2).astype(np.float32, copy=False),
-            method=method,
-            explained_variance_ratio=None,
-        )
+    Y, var_ratio = reduce_pca(flat, n_components=2)
+    result = ReductionResult(
+        coords_2d=Y.reshape(S, N, 2),
+        method="pca",
+        explained_variance_ratio=(float(var_ratio[0]), float(var_ratio[1])),
+    )
 
     if cache_dir is not None:
         _save_cache(cache_dir, method, cache_key, result)
